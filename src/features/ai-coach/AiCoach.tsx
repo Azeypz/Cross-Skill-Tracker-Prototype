@@ -3,16 +3,24 @@ import AiCoachButton from './components/AiCoachButton'
 import AiCoachPanel from './components/AiCoachPanel'
 import { useAiCoach } from './hooks/useAiCoach'
 import { MockAiCoachService } from './services/mockAiCoachService'
+import {
+  ApiAiCoachService,
+  FallbackAiCoachService,
+} from './services/apiAiCoachService'
 import type { AiCoachService } from './services/aiCoachService'
 import type { LearningContext } from './types/chat'
 import type { NewActivityInput } from '../../types/activity'
 import './ai-coach.css'
 
 const mockService = new MockAiCoachService()
+const apiService = new FallbackAiCoachService(
+  new ApiAiCoachService(),
+  mockService,
+)
 
 export default function AiCoach({
   context,
-  service = mockService,
+  service = apiService,
   onSaveActivity,
 }: {
   context: LearningContext
