@@ -3,10 +3,11 @@ import {
   AppWindow,
   ChevronLeft,
   ChevronRight,
+  Eye,
   Cloud,
   Database,
+  Trash2,
   Ellipsis,
-  Eye,
   BookOpen,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
@@ -14,6 +15,7 @@ import { formatActivityDate } from '../data/sampleActivities'
 import type { Activity, LearningPlan } from '../types/activity'
 import StatusBadge from './StatusBadge'
 import ActivityDetails from './ActivityDetails'
+import DeleteActivityDialog from './DeleteActivityDialog'
 
 const categoryIcons = new Map<string, LucideIcon>([
   ['Cloud', Cloud],
@@ -26,10 +28,12 @@ export default function ActivityTable({
   activities,
   learningPlans,
   initialActivityId,
+  onDeleteActivity,
 }: {
   activities: Activity[]
   learningPlans: LearningPlan[]
   initialActivityId?: string
+  onDeleteActivity: (activityId: string) => void
 }) {
   const [requestedPage, setRequestedPage] = useState(() => {
     const index = activities.findIndex(
@@ -40,6 +44,7 @@ export default function ActivityTable({
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(
     null,
   )
+  const [activityToDelete, setActivityToDelete] = useState<Activity | null>(null)
   const totalPages = Math.max(1, Math.ceil(activities.length / pageSize))
   const page = Math.min(requestedPage, totalPages)
   const start = (page - 1) * pageSize
@@ -113,19 +118,34 @@ export default function ActivityTable({
                       >
                         <Ellipsis size={19} aria-hidden="true" />
                       </summary>
-                      <button
-                        type="button"
-                        className="action-menu-item"
-                        onClick={(event) => {
-                          event.currentTarget
-                            .closest('details')
-                            ?.removeAttribute('open')
-                          setSelectedActivity(activity)
-                        }}
-                      >
-                        <Eye size={15} />
-                        View session
-                      </button>
+                      <div className="action-menu-items">
+                        <button
+                          type="button"
+                          className="action-menu-item"
+                          onClick={(event) => {
+                            event.currentTarget
+                              .closest('details')
+                              ?.removeAttribute('open')
+                            setSelectedActivity(activity)
+                          }}
+                        >
+                          <Eye size={15} />
+                          View Details
+                        </button>
+                        <button
+                          type="button"
+                          className="action-menu-item destructive-menu-item"
+                          onClick={(event) => {
+                            event.currentTarget
+                              .closest('details')
+                              ?.removeAttribute('open')
+                            setActivityToDelete(activity)
+                          }}
+                        >
+                          <Trash2 size={15} />
+                          Delete Activity
+                        </button>
+                      </div>
                     </details>
                   </td>
                 </tr>
@@ -182,6 +202,17 @@ export default function ActivityTable({
           activity={selectedActivity}
           learningPlans={learningPlans}
           onClose={() => setSelectedActivity(null)}
+        />
+      )}
+      {activityToDelete && (
+        <DeleteActivityDialog
+          activity={activityToDelete}
+          learningPlans={learningPlans}
+          onCancel={() => setActivityToDelete(null)}
+          onConfirm={() => {
+            onDeleteActivity(activityToDelete.id)
+            setActivityToDelete(null)
+          }}
         />
       )}
     </section>

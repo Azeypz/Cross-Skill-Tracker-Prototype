@@ -2,9 +2,11 @@ import { useEffect, useRef } from 'react'
 import { Bot, Send, X } from 'lucide-react'
 import type { CoachMessage, LearningContext } from '../types/chat'
 import type { ActivityDraft, DraftStage } from '../types/activityDraft'
+import type { LearningPlanDraft } from '../types/learningPlanDraft'
 import { suggestedPrompts } from '../services/mockAiCoachService'
 import ChatMessage from './ChatMessage'
 import ActivityConfirmationCard from './ActivityConfirmationCard'
+import LearningPlanConfirmationCard from './LearningPlanConfirmationCard'
 
 interface AiCoachPanelProps {
   messages: CoachMessage[]
@@ -23,6 +25,15 @@ interface AiCoachPanelProps {
   onUpdateDraft: (changes: Partial<Omit<ActivityDraft, 'id'>>) => void
   onReviewDraft: () => void
   onConfirmDraft: () => Promise<void>
+  learningPlanDraft?: LearningPlanDraft
+  learningPlanDraftStage: DraftStage
+  onCancelLearningPlanDraft: () => void
+  onEditLearningPlanDraft: () => void
+  onUpdateLearningPlanDraft: (
+    changes: Partial<Omit<LearningPlanDraft, 'id'>>,
+  ) => void
+  onReviewLearningPlanDraft: () => void
+  onConfirmLearningPlanDraft: () => Promise<void>
 }
 
 export default function AiCoachPanel({
@@ -42,6 +53,13 @@ export default function AiCoachPanel({
   onUpdateDraft,
   onReviewDraft,
   onConfirmDraft,
+  learningPlanDraft,
+  learningPlanDraftStage,
+  onCancelLearningPlanDraft,
+  onEditLearningPlanDraft,
+  onUpdateLearningPlanDraft,
+  onReviewLearningPlanDraft,
+  onConfirmLearningPlanDraft,
 }: AiCoachPanelProps) {
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const logRef = useRef<HTMLDivElement>(null)
@@ -63,7 +81,7 @@ export default function AiCoachPanel({
     } else {
       log.scrollTop = log.scrollHeight
     }
-  }, [messages.length, isSending, draftStage])
+  }, [messages.length, isSending, draftStage, learningPlanDraftStage])
 
   return (
     <section
@@ -84,8 +102,8 @@ export default function AiCoachPanel({
           <Bot size={24} aria-hidden="true" />
         </span>
         <div>
-          <h2 id="ai-coach-title">AI Learning Coach</h2>
-          <p>Mock coach / Confirm before saving</p>
+          <h2 id="ai-coach-title">Hybrid Cloud Learning Coach</h2>
+          <p>Plan your learning. Track progress. Let AI guide what’s next.</p>
         </div>
         <button
           type="button"
@@ -128,13 +146,31 @@ export default function AiCoachPanel({
             onConfirm={onConfirmDraft}
           />
         )}
+        {learningPlanDraft && (
+          <LearningPlanConfirmationCard
+            draft={learningPlanDraft}
+            stage={learningPlanDraftStage}
+            isSending={isSending}
+            isSaving={isSaving}
+            onCancel={onCancelLearningPlanDraft}
+            onEdit={onEditLearningPlanDraft}
+            onChange={onUpdateLearningPlanDraft}
+            onReview={onReviewLearningPlanDraft}
+            onConfirm={onConfirmLearningPlanDraft}
+          />
+        )}
       </div>
       <div className="ai-coach-prompts" aria-label="Suggested prompts">
         {suggestedPrompts.map((prompt) => (
           <button
             key={prompt}
             type="button"
-            disabled={isSending || isSaving || draftStage === 'editing'}
+            disabled={
+              isSending ||
+              isSaving ||
+              draftStage === 'editing' ||
+              learningPlanDraftStage === 'editing'
+            }
             onClick={() => void onSend(prompt)}
           >
             {prompt}
@@ -163,7 +199,12 @@ export default function AiCoachPanel({
             value={input}
             rows={2}
             maxLength={2000}
-            readOnly={isSending || isSaving || draftStage === 'editing'}
+            readOnly={
+              isSending ||
+              isSaving ||
+              draftStage === 'editing' ||
+              learningPlanDraftStage === 'editing'
+            }
             placeholder="Ask about your learning..."
             onChange={(event) => onInputChange(event.target.value)}
             onKeyDown={(event) => {
@@ -181,7 +222,11 @@ export default function AiCoachPanel({
             type="submit"
             className="ai-coach-send"
             disabled={
-              isSending || isSaving || draftStage === 'editing' || !input.trim()
+              isSending ||
+              isSaving ||
+              draftStage === 'editing' ||
+              learningPlanDraftStage === 'editing' ||
+              !input.trim()
             }
             title="Send message"
             aria-label="Send message"

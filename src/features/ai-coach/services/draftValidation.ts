@@ -53,7 +53,7 @@ export function validateActivityDraft(
     issues.push({
       field: 'learningPlan',
       message:
-        "I couldn't find that learning plan. Would you like to use an existing learning plan or create one manually first?",
+        "I couldn't find that Learning Plan. Please select an existing plan or create the Learning Plan first.",
     })
   if (!draft.activity?.trim())
     issues.push({
@@ -87,6 +87,14 @@ export function validateActivityDraft(
       message:
         "I couldn't find that category. Would you like to use an existing category or create one manually first?",
     })
+  else if (
+    plan?.category &&
+    normalized(plan.category) !== normalized(draft.category)
+  )
+    issues.push({
+      field: 'category',
+      message: `Category must match the selected Learning Plan (${plan.category}).`,
+    })
   if (
     draft.hours === undefined ||
     !Number.isFinite(draft.hours) ||
@@ -98,10 +106,14 @@ export function validateActivityDraft(
       message:
         'How many hours did you spend? Enter more than 0 and no more than 24.',
     })
-  if (draft.status !== 'Completed' && draft.status !== 'In Progress')
+  if (
+    draft.status !== 'Not Started' &&
+    draft.status !== 'Completed' &&
+    draft.status !== 'In Progress'
+  )
     issues.push({
       field: 'status',
-      message: 'Was the task Completed or In Progress?',
+      message: 'Was the task Not Started, In Progress, or Completed?',
     })
   if (!draft.learned?.trim())
     issues.push({ field: 'learned', message: 'What did you learn?' })
@@ -148,6 +160,7 @@ export function toActivityInput(
     (item) => normalized(item.title) === normalized(draft.activity!),
   )
   return {
+    idempotencyKey: draft.id,
     date: draft.date!,
     learningPlanId: plan.id,
     newLearningPlanName: '',

@@ -1,11 +1,14 @@
 export type ActivityPage = 'my-log' | 'add-activity' | 'learning-plans'
-export type ActivityStatus = 'Completed' | 'In Progress'
+export type ActivityStatus = 'Not Started' | 'In Progress' | 'Completed'
+export type MilestoneStatus = 'Not Started' | 'In Progress' | 'Completed'
+export type LearningPlanStatus = MilestoneStatus
 export type ActivityCategory = string
 
 export interface Milestone {
   id: string
   title: string
   required: boolean
+  status: MilestoneStatus
 }
 
 export interface LearningPlan {
@@ -23,6 +26,8 @@ export interface NewLearningPlanInput {
   description: string
   targetSkill: string
   targetCompletionDate: string
+  category?: ActivityCategory
+  milestones?: Array<Omit<Milestone, 'status'> & { status?: MilestoneStatus }>
 }
 
 export interface Evidence {
@@ -61,9 +66,11 @@ export interface ActivityData {
   activities: Activity[]
   customLearningPlans: LearningPlan[]
   customCategories: ActivityCategory[]
+  milestoneProgress: Record<string, MilestoneStatus>
 }
 
 export interface NewActivityInput {
+  idempotencyKey?: string
   date: string
   learningPlanId: string
   newLearningPlanName: string
@@ -81,4 +88,5 @@ export interface ActivityRepository {
   load: () => ActivityData
   saveActivity: (input: NewActivityInput) => ActivityData
   saveLearningPlan: (input: NewLearningPlanInput) => ActivityData
+  deleteActivity: (activityId: string) => ActivityData
 }

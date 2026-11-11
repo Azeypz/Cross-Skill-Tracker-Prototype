@@ -3,6 +3,7 @@ import { MockAiCoachService } from './mockAiCoachService'
 import { agentResponseSchema } from '../types/apiContract'
 import type { AgentResponse, LearningContext } from '../types/chat'
 import type { ActivityDraft } from '../types/activityDraft'
+import type { AgentRequestOptions } from '../types/agentWorkflow'
 
 export class AiCoachApiError extends Error {
   readonly status?: number
@@ -25,7 +26,12 @@ export class ApiAiCoachService implements AiCoachService {
     message: string,
     context: LearningContext,
     draft?: ActivityDraft,
+    options?: AgentRequestOptions,
   ): Promise<AgentResponse> {
+    const requestOptions = options ?? {
+      conversationId: crypto.randomUUID(),
+      idempotencyKey: crypto.randomUUID(),
+    }
     const url = this.baseUrl
       ? new URL('/api/ai-coach/message', this.baseUrl)
       : '/api/ai-coach/message'
@@ -34,7 +40,7 @@ export class ApiAiCoachService implements AiCoachService {
       response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message, context, draft }),
+        body: JSON.stringify({ message, context, draft, ...requestOptions }),
       })
     } catch {
       throw new AiCoachApiError('AI Coach API is unavailable.')
@@ -76,13 +82,14 @@ export class FallbackAiCoachService implements AiCoachService {
     message: string,
     context: LearningContext,
     draft?: ActivityDraft,
+    options?: AgentRequestOptions,
   ): Promise<AgentResponse> {
     try {
-      return await this.api.sendMessage(message, context, draft)
+      return await this.api.sendMessage(message, context, draft, options)
     } catch (error) {
       if (error instanceof AiCoachApiError && error.status && error.status < 500)
         throw error
-      const response = await this.fallback.sendMessage(message, context, draft)
+      const response = await this.fallback.sendMessage(message, context, draft, options)
       return {
         ...response,
         text: `Using the local mock fallback because the AI Coach API is unavailable.\n\n${response.text}`,

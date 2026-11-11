@@ -1,15 +1,22 @@
-import { categories, learningPlans, sampleActivities } from './sampleActivities'
+import { categories, learningPlans } from './sampleActivities'
 import type {
   Activity,
   ActivityData,
   ActivityRepository,
   LearningPlan,
+  LearningPlanStatus,
+  MilestoneStatus,
   NewActivityInput,
   NewLearningPlanInput,
 } from '../types/activity'
 
 export const otherOption = '__other__'
 export const activityStorageKey = 'productivity-log:data:v1'
+const milestoneStatuses: MilestoneStatus[] = [
+  'Not Started',
+  'In Progress',
+  'Completed',
+]
 
 export function normalizeName(value: string) {
   return value.trim().replace(/\s+/g, ' ')
@@ -35,18 +42,71 @@ export function customNameError(
 }
 
 export function initialActivityData(): ActivityData {
+  const milestoneProgress: Record<string, MilestoneStatus> = Object.fromEntries(
+    learningPlans.flatMap((plan) =>
+      plan.milestones.map(
+        (milestone) => [milestone.id, 'Not Started' as MilestoneStatus],
+      ),
+    ),
+  )
   return {
-    activities: sampleActivities,
+    activities: [],
     customLearningPlans: [],
     customCategories: [],
+    milestoneProgress,
   }
 }
 
 export function activityCatalog(data: ActivityData) {
+  const plans = [...learningPlans, ...data.customLearningPlans].map((plan) => ({
+    ...plan,
+    milestones: plan.milestones.map((milestone) => ({
+      ...milestone,
+      status: data.milestoneProgress[milestone.id] ?? milestone.status,
+    })),
+  }))
   return {
-    learningPlans: [...learningPlans, ...data.customLearningPlans],
+    learningPlans: plans,
     categories: [...categories, ...data.customCategories],
   }
+}
+
+export function learningPlanProgress(plan: LearningPlan) {
+  const required = plan.milestones.filter((milestone) => milestone.required)
+  if (!required.length) return 0
+  return (
+    (required.filter((milestone) => milestone.status === 'Completed').length /
+      required.length) *
+    100
+  )
+}
+
+export function learningPlanStatus(plan: LearningPlan): LearningPlanStatus {
+  const required = plan.milestones.filter((milestone) => milestone.required)
+  if (
+    required.length > 0 &&
+    required.every((milestone) => milestone.status === 'Completed')
+  )
+    return 'Completed'
+  if (required.some((milestone) => milestone.status !== 'Not Started'))
+    return 'In Progress'
+  return 'Not Started'
+}
+
+export function resetPrototypeData() {
+  const data: ActivityData = {
+    activities: [],
+    customLearningPlans: [],
+    customCategories: [],
+    milestoneProgress: Object.fromEntries(
+      learningPlans.flatMap((plan) =>
+        plan.milestones.map(
+          (milestone) => [milestone.id, 'Not Started' as MilestoneStatus],
+        ),
+      ),
+    ) as Record<string, MilestoneStatus>,
+  }
+  return persist(data, 'Prototype data')
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -59,6 +119,10 @@ function isNonemptyString(value: unknown): value is string {
 
 function isOptionalText(value: unknown) {
   return value === undefined || typeof value === 'string'
+}
+
+function isMilestoneStatus(value: unknown): value is MilestoneStatus {
+  return milestoneStatuses.includes(value as MilestoneStatus)
 }
 
 function isOptionalTargetDate(value: unknown) {
@@ -86,7 +150,8 @@ function isLearningPlan(value: unknown): value is LearningPlan {
         isRecord(milestone) &&
         isNonemptyString(milestone.id) &&
         isNonemptyString(milestone.title) &&
-        typeof milestone.required === 'boolean',
+        typeof milestone.required === 'boolean' &&
+        (milestone.status === undefined || isMilestoneStatus(milestone.status)),
     )
   )
 }
@@ -107,7 +172,9 @@ function isActivity(value: unknown): value is Activity {
     Number.isFinite(value.hours) &&
     value.hours > 0 &&
     value.hours <= 24 &&
-    (value.status === 'Completed' || value.status === 'In Progress') &&
+    (value.status === 'Not Started' ||
+      value.status === 'Completed' ||
+      value.status === 'In Progress') &&
     typeof value.reflection.learning === 'string' &&
     typeof value.reflection.blockers === 'string' &&
     typeof value.reflection.nextStep === 'string' &&
@@ -116,6 +183,31 @@ function isActivity(value: unknown): value is Activity {
         typeof evidence.name === 'string' &&
         typeof evidence.size === 'number' &&
         typeof evidence.type === 'string'))
+  )
+}
+
+function recalculateMilestoneProgress(
+  activities: Activity[],
+  plans: LearningPlan[],
+): Record<string, MilestoneStatus> {
+  return Object.fromEntries(
+    plans.flatMap((plan) =>
+      plan.milestones.map((milestone) => {
+        const records = activities.filter(
+          (activity) =>
+            activity.learningPlanId === plan.id &&
+            activity.milestoneId === milestone.id,
+        )
+        const status: MilestoneStatus = records.some(
+          (activity) => activity.status === 'Completed',
+        )
+          ? 'Completed'
+          : records.some((activity) => activity.status === 'In Progress')
+            ? 'In Progress'
+            : 'Not Started'
+        return [milestone.id, status]
+      }),
+    ),
   )
 }
 
@@ -140,14 +232,25 @@ function load(): ActivityData {
       !Array.isArray(stored.customLearningPlans) ||
       !stored.customLearningPlans.every(isLearningPlan) ||
       !Array.isArray(stored.customCategories) ||
-      !stored.customCategories.every(isNonemptyString)
+      !stored.customCategories.every(isNonemptyString) ||
+      (stored.milestoneProgress !== undefined &&
+        (!isRecord(stored.milestoneProgress) ||
+          !Object.values(stored.milestoneProgress).every(isMilestoneStatus)))
     ) {
       throw new Error('Invalid saved data')
     }
-    return {
+    const data: ActivityData = {
       activities: stored.activities,
       customLearningPlans: stored.customLearningPlans,
       customCategories: stored.customCategories,
+      milestoneProgress: {},
+    }
+    return {
+      ...data,
+      milestoneProgress: recalculateMilestoneProgress(data.activities, [
+        ...learningPlans,
+        ...data.customLearningPlans,
+      ]),
     }
   } catch {
     throw new Error(
@@ -181,22 +284,50 @@ function saveLearningPlan(input: NewLearningPlanInput): ActivityData {
   if (nameError) throw new Error(nameError)
   if (!isOptionalTargetDate(input.targetCompletionDate))
     throw new Error('Enter a valid target completion date.')
+  const milestones = input.milestones ?? []
+  if (
+    !Array.isArray(milestones) ||
+    !milestones.every(
+      (milestone) =>
+        isNonemptyString(milestone.id) &&
+        isNonemptyString(milestone.title) &&
+          typeof milestone.required === 'boolean' &&
+          (milestone.status === undefined || isMilestoneStatus(milestone.status)),
+    )
+  )
+    throw new Error('Learning plan activities are invalid.')
   const plan: LearningPlan = {
     id: crypto.randomUUID(),
     name: normalizeName(input.name),
     description: input.description.trim(),
     targetSkill: normalizeName(input.targetSkill),
     targetCompletionDate: input.targetCompletionDate,
-    milestones: [],
+    category: input.category ? normalizeName(input.category) : undefined,
+    milestones: milestones.map((milestone) => ({
+      ...milestone,
+      status: milestone.status ?? 'Not Started',
+    })),
   }
+  const milestoneProgress = { ...data.milestoneProgress }
+  for (const milestone of plan.milestones)
+    milestoneProgress[milestone.id] = milestone.status
   return persist(
-    { ...data, customLearningPlans: [...data.customLearningPlans, plan] },
+    {
+      ...data,
+      customLearningPlans: [...data.customLearningPlans, plan],
+      milestoneProgress,
+    },
     'Learning plan',
   )
 }
 
 function saveActivity(input: NewActivityInput): ActivityData {
   const data = load()
+  if (
+    input.idempotencyKey &&
+    data.activities.some((activity) => activity.id === input.idempotencyKey)
+  )
+    return data
   const catalog = activityCatalog(data)
   const newPlan = input.learningPlanId === otherOption
   const newCategory = input.category === otherOption
@@ -226,6 +357,13 @@ function saveActivity(input: NewActivityInput): ActivityData {
       }
     : catalog.learningPlans.find((item) => item.id === input.learningPlanId)
   if (!plan) throw new Error('Select a learning plan.')
+  if (
+    !newPlan &&
+    plan.category &&
+    normalizeName(category).toLowerCase() !==
+      normalizeName(plan.category).toLowerCase()
+  )
+    throw new Error('Activity category must match the selected learning plan.')
   const milestone = plan.milestones.find(
     (item) => item.id === input.milestoneId,
   )
@@ -233,7 +371,7 @@ function saveActivity(input: NewActivityInput): ActivityData {
     throw new Error('Select a milestone / activity.')
 
   const activity: Activity = {
-    id: crypto.randomUUID(),
+    id: input.idempotencyKey ?? crypto.randomUUID(),
     date: input.date,
     title: milestone?.title ?? normalizeName(input.title),
     learningPlanId: plan.id,
@@ -254,6 +392,29 @@ function saveActivity(input: NewActivityInput): ActivityData {
     customCategories: newCategory
       ? [...data.customCategories, category]
       : data.customCategories,
+    milestoneProgress: {},
+  }
+  next.milestoneProgress = recalculateMilestoneProgress(next.activities, [
+    ...learningPlans,
+    ...next.customLearningPlans,
+  ])
+  return persist(next, 'Activity')
+}
+
+function deleteActivity(activityId: string): ActivityData {
+  const data = load()
+  if (!data.activities.some((activity) => activity.id === activityId))
+    return data
+  const activities = data.activities.filter(
+    (activity) => activity.id !== activityId,
+  )
+  const next: ActivityData = {
+    ...data,
+    activities,
+    milestoneProgress: recalculateMilestoneProgress(activities, [
+      ...learningPlans,
+      ...data.customLearningPlans,
+    ]),
   }
   return persist(next, 'Activity')
 }
@@ -262,4 +423,5 @@ export const activityRepository: ActivityRepository = {
   load,
   saveActivity,
   saveLearningPlan,
+  deleteActivity,
 }

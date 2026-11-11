@@ -2,7 +2,11 @@ import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { BookOpen, CheckCircle2, Plus, X } from 'lucide-react'
 import FormField from '../components/FormField'
-import { customNameError } from '../data/activityRepository'
+import {
+  customNameError,
+  learningPlanProgress,
+  learningPlanStatus,
+} from '../data/activityRepository'
 import { formatActivityDate } from '../data/sampleActivities'
 import type { LearningPlan, NewLearningPlanInput } from '../types/activity'
 
@@ -197,6 +201,8 @@ export default function LearningPlans({
                   'Description',
                   'Target Skill',
                   'Target Completion Date',
+                  'Status',
+                  'Progress',
                 ].map((column) => (
                   <th key={column} scope="col">
                     {column}
@@ -222,6 +228,8 @@ export default function LearningPlans({
                       ? formatActivityDate(plan.targetCompletionDate)
                       : 'Not set'}
                   </td>
+                  <td>{learningPlanStatus(plan)}</td>
+                  <td>{learningPlanProgress(plan).toFixed(1)}%</td>
                 </tr>
               ))}
             </tbody>

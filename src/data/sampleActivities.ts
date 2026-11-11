@@ -21,9 +21,9 @@ export const learningPlans: LearningPlan[] = [
     name: 'Azure Fundamentals',
     category: 'Cloud',
     milestones: [
-      { id: 'azure-study', title: 'Azure Fundamentals Study', required: true },
-      { id: 'azure-vm', title: 'Azure VM Lab', required: true },
-      { id: 'azure-review', title: 'Azure Knowledge Review', required: true },
+      { id: 'azure-study', title: 'Azure Fundamentals Study', required: true, status: 'Completed' },
+      { id: 'azure-vm', title: 'Azure VM Lab', required: true, status: 'Completed' },
+      { id: 'azure-review', title: 'Azure Knowledge Review', required: true, status: 'Not Started' },
     ],
   },
   {
@@ -35,8 +35,9 @@ export const learningPlans: LearningPlan[] = [
         id: 'canvas-app',
         title: 'Power Apps Canvas App Practice',
         required: true,
+        status: 'In Progress',
       },
-      { id: 'power-forms', title: 'Power Apps Form Practice', required: true },
+      { id: 'power-forms', title: 'Power Apps Form Practice', required: true, status: 'Completed' },
     ],
   },
   {
@@ -48,11 +49,13 @@ export const learningPlans: LearningPlan[] = [
         id: 'oracle-architecture',
         title: 'Oracle Database Architecture',
         required: true,
+        status: 'Not Started',
       },
       {
         id: 'oracle-backup',
         title: 'Oracle Backup and Recovery Lab',
         required: true,
+        status: 'Not Started',
       },
     ],
   },
@@ -65,8 +68,9 @@ export const learningPlans: LearningPlan[] = [
         id: 'gcp-core',
         title: 'Google Cloud Core Services Study',
         required: true,
+        status: 'Not Started',
       },
-      { id: 'gcp-compute', title: 'Compute Engine Lab', required: true },
+      { id: 'gcp-compute', title: 'Compute Engine Lab', required: true, status: 'Not Started' },
     ],
   },
   {
@@ -74,8 +78,8 @@ export const learningPlans: LearningPlan[] = [
     name: 'SQL for DBA',
     category: 'Database Administration',
     milestones: [
-      { id: 'sql-joins', title: 'SQL Joins and Subqueries', required: true },
-      { id: 'sql-procedures', title: 'Stored Procedures Lab', required: true },
+      { id: 'sql-joins', title: 'SQL Joins and Subqueries', required: true, status: 'Completed' },
+      { id: 'sql-procedures', title: 'Stored Procedures Lab', required: true, status: 'In Progress' },
     ],
   },
 ]

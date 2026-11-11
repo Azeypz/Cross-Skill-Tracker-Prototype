@@ -5,13 +5,15 @@ import ActivityLog from './pages/ActivityLog'
 import AddActivity from './pages/AddActivity'
 import LearningPlans from './pages/LearningPlans'
 import AiCoach from './features/ai-coach/AiCoach'
-import { sampleActivities } from './data/sampleActivities'
 import {
   activityCatalog,
   activityRepository,
   initialActivityData,
+  learningPlanStatus,
+  resetPrototypeData,
 } from './data/activityRepository'
 import type {
+  Activity,
   ActivityFilterValues,
   ActivityPage,
   NewActivityInput,
@@ -41,16 +43,26 @@ export default function App() {
   })
   const { activities } = store.data
   const catalog = activityCatalog(store.data)
+  const completedLearningPlans = catalog.learningPlans.filter(
+    (plan) => learningPlanStatus(plan) === 'Completed',
+  )
+  const completedPlanIds = new Set(
+    completedLearningPlans.map((plan) => plan.id),
+  )
+  const eligibleLearningPlans = catalog.learningPlans
+    .filter((plan) => !completedPlanIds.has(plan.id))
+    .map((plan) => ({
+      ...plan,
+      milestones: plan.milestones.filter(
+        (milestone) => milestone.status !== 'Completed',
+      ),
+    }))
   const [notice, setNotice] = useState('')
   const [lastSavedActivityId, setLastSavedActivityId] = useState<string>()
   const [filters, setFilters] = useState<ActivityFilterValues>(() => {
-    const hasSavedActivities = activities.some(
-      (activity) =>
-        !sampleActivities.some((sample) => sample.id === activity.id),
-    )
     return {
-      from: hasSavedActivities ? '' : '2024-10-01',
-      to: hasSavedActivities ? '' : '2024-10-31',
+      from: '',
+      to: '',
       category: '',
       status: '',
     }
@@ -62,18 +74,47 @@ export default function App() {
     return () => window.removeEventListener('hashchange', handleNavigation)
   }, [])
 
-  function saveActivity(input: NewActivityInput) {
+  function saveActivity(input: NewActivityInput): Activity {
     const data = activityRepository.saveActivity(input)
+    const savedActivity = data.activities.find(
+      (activity) =>
+        activity.id === (input.idempotencyKey ?? data.activities[0]?.id),
+    )
+    if (!savedActivity)
+      throw new Error('The saved activity could not be verified by its ID.')
     setStore({ data, error: '' })
     setLastSavedActivityId(data.activities[0].id)
     setFilters({ from: '', to: '', category: '', status: '' })
     setNotice('Activity saved successfully.')
     window.location.hash = '/my-log'
+    return savedActivity
+  }
+
+  function deleteActivity(activityId: string) {
+    const data = activityRepository.deleteActivity(activityId)
+    setStore({ data, error: '' })
   }
 
   function saveLearningPlan(input: NewLearningPlanInput) {
     const data = activityRepository.saveLearningPlan(input)
     setStore({ data, error: '' })
+  }
+
+  function resetPrototype() {
+    if (
+      !window.confirm(
+        'Reset Productivity Log prototype data? Activities, custom learning plans, custom categories, and milestone progress will be removed. This cannot be undone.',
+      )
+    )
+      return
+    try {
+      resetPrototypeData()
+      window.location.reload()
+    } catch (error) {
+      setNotice(
+        error instanceof Error ? error.message : 'Prototype data could not be reset.',
+      )
+    }
   }
 
   return (
@@ -88,7 +129,7 @@ export default function App() {
       >
         Skip to content
       </a>
-      <Header />
+      <Header onResetPrototype={import.meta.env.DEV ? resetPrototype : undefined} />
       <Sidebar page={page} />
       <main className="activity-main" id="main-content" tabIndex={-1}>
         {store.error && (
@@ -102,6 +143,7 @@ export default function App() {
             learningPlans={catalog.learningPlans}
             categories={catalog.categories}
             lastSavedActivityId={lastSavedActivityId}
+            onDeleteActivity={deleteActivity}
             filters={filters}
             onFiltersChange={setFilters}
             notice={notice}
@@ -124,10 +166,13 @@ export default function App() {
         context={{
           activities,
           learningPlans: catalog.learningPlans,
+          completedLearningPlans,
+          eligibleLearningPlans,
           categories: catalog.categories,
           dataUnavailable: Boolean(store.error),
         }}
         onSaveActivity={saveActivity}
+        onSaveLearningPlan={saveLearningPlan}
       />
     </div>
   )

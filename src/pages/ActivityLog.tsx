@@ -13,6 +13,7 @@ interface ActivityLogProps {
   learningPlans: LearningPlan[]
   categories: ActivityCategory[]
   lastSavedActivityId?: string
+  onDeleteActivity: (activityId: string) => void
   filters: ActivityFilterValues
   onFiltersChange: (filters: ActivityFilterValues) => void
   notice: string
@@ -24,6 +25,7 @@ export default function ActivityLog({
   learningPlans,
   categories,
   lastSavedActivityId,
+  onDeleteActivity,
   filters,
   onFiltersChange,
   notice,
@@ -73,12 +75,26 @@ export default function ActivityLog({
         value={filters}
         onChange={onFiltersChange}
       />
-      <ActivityTable
-        key={`${filters.from}-${filters.to}-${filters.category}-${filters.status}`}
-        activities={filteredActivities}
-        learningPlans={learningPlans}
-        initialActivityId={lastSavedActivityId}
-      />
+      {activities.length === 0 ? (
+        <section className="activity-empty-state" aria-labelledby="empty-log-title">
+          <h2 id="empty-log-title">No activities yet</h2>
+          <p>
+            Start logging your learning activities or ask AI Coach to help you add one.
+          </p>
+          <a href="#/add-activity" className="primary-button">
+            <Plus size={18} aria-hidden="true" />
+            Add Activity
+          </a>
+        </section>
+      ) : (
+        <ActivityTable
+          key={`${filters.from}-${filters.to}-${filters.category}-${filters.status}`}
+          activities={filteredActivities}
+          learningPlans={learningPlans}
+          initialActivityId={lastSavedActivityId}
+          onDeleteActivity={onDeleteActivity}
+        />
+      )}
     </div>
   )
 }

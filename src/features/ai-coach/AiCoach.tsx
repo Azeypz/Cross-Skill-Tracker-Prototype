@@ -9,7 +9,11 @@ import {
 } from './services/apiAiCoachService'
 import type { AiCoachService } from './services/aiCoachService'
 import type { LearningContext } from './types/chat'
-import type { NewActivityInput } from '../../types/activity'
+import type {
+  Activity,
+  NewActivityInput,
+  NewLearningPlanInput,
+} from '../../types/activity'
 import './ai-coach.css'
 
 const mockService = new MockAiCoachService()
@@ -22,14 +26,21 @@ export default function AiCoach({
   context,
   service = apiService,
   onSaveActivity,
+  onSaveLearningPlan,
 }: {
   context: LearningContext
   service?: AiCoachService
-  onSaveActivity: (input: NewActivityInput) => void | Promise<void>
+  onSaveActivity: (input: NewActivityInput) => Activity | Promise<Activity>
+  onSaveLearningPlan: (input: NewLearningPlanInput) => void | Promise<void>
 }) {
   const [open, setOpen] = useState(false)
   const buttonRef = useRef<HTMLButtonElement>(null)
-  const coach = useAiCoach(service, context, onSaveActivity)
+  const coach = useAiCoach(
+    service,
+    context,
+    onSaveActivity,
+    onSaveLearningPlan,
+  )
   function closePanel() {
     setOpen(false)
     buttonRef.current?.focus()
@@ -62,6 +73,13 @@ export default function AiCoach({
           onUpdateDraft={coach.updateDraft}
           onReviewDraft={coach.reviewDraft}
           onConfirmDraft={coach.confirmDraft}
+          learningPlanDraft={coach.learningPlanDraft}
+          learningPlanDraftStage={coach.learningPlanDraftStage}
+          onCancelLearningPlanDraft={coach.cancelLearningPlanDraft}
+          onEditLearningPlanDraft={coach.editLearningPlanDraft}
+          onUpdateLearningPlanDraft={coach.updateLearningPlanDraft}
+          onReviewLearningPlanDraft={coach.reviewLearningPlanDraft}
+          onConfirmLearningPlanDraft={coach.confirmLearningPlanDraft}
         />
       )}
     </>

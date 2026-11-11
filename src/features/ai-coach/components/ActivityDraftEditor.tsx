@@ -44,9 +44,16 @@ export default function ActivityDraftEditor({
           id="draft-plan"
           value={plan?.name ?? draft.learningPlan ?? ''}
           required
-          onChange={(event) =>
-            onChange({ learningPlan: event.target.value, activity: undefined })
-          }
+          onChange={(event) => {
+            const selectedPlan = context.learningPlans.find(
+              (item) => item.name === event.target.value,
+            )
+            onChange({
+              learningPlan: event.target.value,
+              activity: undefined,
+              category: selectedPlan?.category,
+            })
+          }}
         >
           <option value="" disabled>
             Select a learning plan
@@ -143,7 +150,9 @@ export default function ActivityDraftEditor({
         <select
           id="draft-status"
           value={
-            draft.status === 'Completed' || draft.status === 'In Progress'
+            draft.status === 'Not Started' ||
+            draft.status === 'Completed' ||
+            draft.status === 'In Progress'
               ? draft.status
               : ''
           }
@@ -153,6 +162,7 @@ export default function ActivityDraftEditor({
           <option value="" disabled>
             Select status
           </option>
+          <option>Not Started</option>
           <option>In Progress</option>
           <option>Completed</option>
         </select>

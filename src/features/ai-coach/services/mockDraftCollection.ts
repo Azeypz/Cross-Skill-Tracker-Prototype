@@ -100,12 +100,14 @@ function assign(
       ? 'Completed'
       : /^(?:in progress|ongoing|still working)$/.test(status)
         ? 'In Progress'
+        : /^(?:not started|not begun|haven't started)$/.test(status)
+          ? 'Not Started'
         : text
   } else draft[field] = text
 }
 
 export function looksLikeActivity(message: string) {
-  return /\b(?:i (?:studied|practiced|practised|worked on|learned|completed)|learning session|(?:help me |please )?(?:add|log|record) (?:an?|my) activity)\b|(?:^|[;\n])\s*(?:date|learning plan|activity|hours)\s*:/i.test(
+  return /\b(?:i (?:studied|practiced|practised|worked on|learned|reviewed|completed)|learning session|(?:help me |please )?(?:add|log|record)\s+(?:(?:an?|my)\s+)?(?:activity|session|what i studied|(?:\d+(?:\.\d+)?|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s+hours?))\b|(?:^|[;\n])\s*(?:date|learning plan|activity|hours)\s*:/i.test(
     message,
   )
 }
@@ -152,15 +154,39 @@ export function collectActivityDraft(
     else if (/\ban hour\b/i.test(message)) changes.hours = 1
   }
   if (!changes.learningPlan) {
-    const matched = [...context.learningPlans]
-      .sort((first, second) => second.name.length - first.name.length)
-      .find((plan) => mentions(message, plan.name))
+    const matchedPlans = context.learningPlans.filter((plan) =>
+      mentions(message, plan.name),
+    )
+    const exactPlan = context.learningPlans.find(
+      (plan) => normalized(message) === normalized(plan.name),
+    )
+    const matched = exactPlan ?? (matchedPlans.length === 1 ? matchedPlans[0] : undefined)
     if (matched) changes.learningPlan = matched.name
     else {
       const naturalPlan = message.match(
         /\b(?:under|learning plan (?:is|called))\s+["']?([^\n;,."']+)/i,
       )
-      if (naturalPlan) changes.learningPlan = naturalPlan[1].trim()
+      if (naturalPlan) {
+        const reference = naturalPlan[1]
+          .replace(/^(?:my|the)\s+/i, '')
+          .replace(/\s+learning plan$/i, '')
+          .trim()
+        const matches = context.learningPlans.filter(
+          (item) =>
+            normalized(item.name).includes(normalized(reference)) ||
+            normalized(reference).includes(normalized(item.name)),
+        )
+        if (matches.length === 1) changes.learningPlan = matches[0]!.name
+        else if (matches.length > 1) {
+          Object.assign(draft, changes)
+          draft.awaitingFields = ['learningPlan']
+          return {
+            kind: 'question',
+            draft,
+            text: `I found multiple possible Learning Plans: ${matches.map((item) => item.name).join(', ')}. Which one should I use?`,
+          }
+        } else changes.learningPlan = reference
+      }
       else if (
         previous?.awaitingFields?.includes('learningPlan') &&
         message.includes(',')
@@ -168,16 +194,36 @@ export function collectActivityDraft(
         changes.learningPlan = message.split(',')[0].trim()
       }
     }
+    if (!matched && matchedPlans.length > 1) {
+      Object.assign(draft, changes)
+      draft.awaitingFields = ['learningPlan']
+      return {
+        kind: 'question',
+        draft,
+        text: `I found multiple possible Learning Plans: ${matchedPlans.map((plan) => plan.name).join(', ')}. Which one should I use?`,
+      }
+    }
   }
   const plan = findPlan({ ...draft, ...changes }, context)
+  if (!changes.category && plan?.category) changes.category = plan.category
   if (!changes.activity) {
-    const milestone = plan?.milestones.find((item) =>
+    const matchedMilestones = plan?.milestones.filter((item) =>
       mentions(message, item.title),
     )
-    if (milestone) changes.activity = milestone.title
+    if (matchedMilestones && matchedMilestones.length > 1) {
+      Object.assign(draft, changes)
+      draft.awaitingFields = ['activity']
+      return {
+        kind: 'question',
+        draft,
+        text: `I found multiple possible milestones in ${plan!.name}: ${matchedMilestones.map((item) => item.title).join(', ')}. Which one did you work on?`,
+      }
+    }
+    if (matchedMilestones?.length === 1)
+      changes.activity = matchedMilestones[0]!.title
     else {
       const task = message.match(
-        /\bI (?:studied|practiced|practised|worked on)\s+(.+?)\s+for\s+(?:-?\d|one\b|two\b|three\b|four\b|half\b)/i,
+        /\bI (?:studied|practiced|practised|reviewed|worked on)\s+(.+?)\s+for\s+(?:-?\d|one\b|two\b|three\b|four\b|half\b)/i,
       )
       if (task) changes.activity = task[1].trim()
       else if (changes.learningPlan && message.includes(',')) {
@@ -200,7 +246,9 @@ export function collectActivityDraft(
     }
   }
   if (!changes.status) {
-    if (
+    if (/\bnot started\b/i.test(message))
+      changes.status = 'Not Started'
+    else if (
       /\b(?:not|never|haven't|hasn't)\s+(?:completed|finished)\b|\bI (?:completed|finished) nothing\b/i.test(
         message,
       )
@@ -214,12 +262,12 @@ export function collectActivityDraft(
       )
     )
       changes.status = 'Completed'
-    else if (/^\s*(?:completed|in progress)[.!]?\s*$/i.test(message))
+    else if (/^\s*(?:not started|completed|in progress)[.!]?\s*$/i.test(message))
       assign(changes, 'status', message, now)
     else if (previous?.awaitingFields?.includes('status')) {
       const supplied = message
         .split(/[,;\n]/)
-        .find((part) => /^(?:completed|in progress)[.!]?$/i.test(part.trim()))
+        .find((part) => /^(?:not started|completed|in progress)[.!]?$/i.test(part.trim()))
       if (supplied) assign(changes, 'status', supplied, now)
     }
   }

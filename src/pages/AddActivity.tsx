@@ -21,7 +21,7 @@ export default function AddActivity({
   learningPlans,
   categories,
 }: {
-  onSave: (input: NewActivityInput) => void | Promise<void>
+  onSave: (input: NewActivityInput) => unknown | Promise<unknown>
   learningPlans: LearningPlan[]
   categories: ActivityCategory[]
 }) {
@@ -259,7 +259,7 @@ export default function AddActivity({
                 name="hours"
                 type="number"
                 placeholder="e.g. 1.5"
-                min="0.25"
+                min="0.01"
                 max="24"
                 step="0.25"
                 required
@@ -274,6 +274,7 @@ export default function AddActivity({
               defaultValue="In Progress"
               required
             >
+              <option>Not Started</option>
               <option>In Progress</option>
               <option>Completed</option>
             </select>

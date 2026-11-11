@@ -53,17 +53,17 @@ export default function ActivityConfirmationCard(
           <dd>{formatActivityDate(draft.date!)}</dd>
           <dt>Learning Plan</dt>
           <dd>{draft.learningPlan}</dd>
-          <dt>Activity</dt>
+          <dt>Milestone / Activity</dt>
           <dd>{draft.activity}</dd>
           <dt>Category</dt>
           <dd>{draft.category}</dd>
-          <dt>Hours</dt>
+          <dt>Hours Spent</dt>
           <dd>{draft.hours}</dd>
-          <dt>Status</dt>
+          <dt>Task Status</dt>
           <dd>{draft.status}</dd>
-          <dt>Learned</dt>
+          <dt>What did you learn?</dt>
           <dd>{draft.learned}</dd>
-          <dt>Blocker</dt>
+          <dt>Challenges / Blockers</dt>
           <dd>{draft.blockers}</dd>
           <dt>Next Step</dt>
           <dd>{draft.nextStep}</dd>

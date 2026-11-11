@@ -88,6 +88,7 @@ export default function ActivityFilters({
           }
         >
           <option value="">All Status</option>
+          <option>Not Started</option>
           <option>Completed</option>
           <option>In Progress</option>
         </select>
