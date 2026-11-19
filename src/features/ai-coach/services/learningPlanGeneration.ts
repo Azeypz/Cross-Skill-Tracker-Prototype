@@ -174,9 +174,9 @@ function requestedSkill(message: string, context: LearningContext) {
   }
 
   const eligiblePlans = context.eligibleLearningPlans ?? context.learningPlans
-  const recentPlan = [...eligiblePlans].reverse().find(
-    (plan) => plan.targetSkill?.trim() || plan.name.trim(),
-  )
+  const recent = [...eligiblePlans].reverse()
+  const recentPlan = recent.find((plan) => plan.status === 'In Progress')
+    ?? recent.find((plan) => plan.status !== 'Completed')
   return recentPlan?.targetSkill?.trim() || recentPlan?.name.trim() || ''
 }
 

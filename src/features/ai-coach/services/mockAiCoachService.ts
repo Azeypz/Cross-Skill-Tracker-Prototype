@@ -1,4 +1,6 @@
 import { formatActivityDate } from '../../../data/sampleActivities'
+import { formatActivityHours } from '../../../data/activityHours'
+import { completedPlannedHours, learningPlanProgress } from '../../../data/activityRepository'
 import type { Activity, LearningPlan } from '../../../types/activity'
 import type { AgentResponse, LearningContext } from '../types/chat'
 import type { AiCoachService } from './aiCoachService'
@@ -34,7 +36,7 @@ function recentActivity(context: LearningContext): AgentResponse {
     const plan = context.learningPlans.find(
       (item) => item.id === activity.learningPlanId,
     )
-    return `${formatActivityDate(activity.date)}: ${activity.title}\nActivity Category: ${activity.category} / Learning Plan: ${plan?.name ?? 'Learning plan unavailable'} / Plan Category: ${plan?.category ?? 'Not recorded'} / ${activity.hours} ${activity.hours === 1 ? 'hour' : 'hours'} / ${activity.status}`
+    return `${formatActivityDate(activity.date)}: ${activity.title}\nActivity Category: ${activity.category} / Learning Plan: ${plan?.name ?? 'Learning plan unavailable'} / Plan Category: ${plan?.category ?? 'Not recorded'} / ${formatActivityHours(activity.hours)} / ${activity.status}`
   })
   return {
     kind: 'answer',
@@ -46,7 +48,14 @@ function currentLearning(context: LearningContext): AgentResponse {
   if (!context.learningPlans.length)
     return {
       kind: 'answer',
-      text: 'No learning plans are available. You can create one in Learning Plans.',
+      text: context.activities.length
+        ? 'No learning plans are available. You can create one in Learning Plans.'
+        : "You don't have any recorded learning activities or Learning Plans yet.",
+    }
+  if (!context.activities.length)
+    return {
+      kind: 'answer',
+      text: `You have Learning Plans, but you haven't recorded any learning activities yet.\n\nLearning Plans: ${context.learningPlans.map((plan) => `${plan.name} (${plan.status})`).join(', ')}.`,
     }
   const recent = sortedActivities(context)
   const latestByPlan = new Map<string, Readonly<Activity>>()
@@ -59,21 +68,14 @@ function currentLearning(context: LearningContext): AgentResponse {
   )
   const rows = recorded.map((plan) => {
     const activity = latestByPlan.get(plan.id)!
-    const requiredMilestones = plan.milestones.filter((item) => item.required)
-    const status = requiredMilestones.length > 0 &&
-      requiredMilestones.every((item) => item.status === 'Completed')
-      ? 'Completed'
-      : requiredMilestones.some((item) => item.status !== 'Not Started')
-        ? 'In Progress'
-        : 'Not Started'
-    return `${plan.name} (${status})\nCategory: ${plan.category ?? 'Not recorded'}\nLatest recorded session: ${activity.title} (${activity.status}, ${formatActivityDate(activity.date)})`
+    return `${plan.name} (${plan.status})\nCategory: ${plan.category ?? 'Not recorded'}\nLatest recorded session: ${activity.title} (${activity.status}, ${formatActivityDate(activity.date)})`
   })
   const withoutSessions = context.learningPlans.filter(
     (plan) => !latestByPlan.has(plan.id),
   )
   if (withoutSessions.length)
     rows.push(
-      `Plans without recorded sessions: ${withoutSessions.map((plan) => plan.name).join(', ')}.`,
+      `Plans without recorded sessions: ${withoutSessions.map((plan) => `${plan.name} (${plan.status})`).join(', ')}.`,
     )
   return {
     kind: 'answer',
@@ -81,19 +83,77 @@ function currentLearning(context: LearningContext): AgentResponse {
   }
 }
 
-function recommendation(context: LearningContext): AgentResponse {
-  const response = (text: string): AgentResponse => ({
+function targetProgress(message: string, context: LearningContext): AgentResponse | undefined {
+  const targetMatch = message.match(/(\d+(?:\.\d+)?)\s*(?:%|percent\b)/i)
+  if (!targetMatch || !/\b(?:progress|reach|target|complete|get to)\b/i.test(message))
+    return undefined
+  const target = Number(targetMatch[1])
+  if (target < 0 || target > 100)
+    return { kind: 'answer', text: 'Choose a target percentage between 0 and 100.' }
+  const matches = context.learningPlans.filter((plan) =>
+    message.toLowerCase().includes(plan.name.toLowerCase()),
+  )
+  if (matches.length !== 1)
+    return { kind: 'answer', text: 'Include the Learning Plan name and target percentage in your question.' }
+  const plan = matches[0]
+  if (plan.status === 'Completed')
+    return { kind: 'answer', text: `${plan.name} is marked Completed. Its recorded milestone progress is separate from its plan status.` }
+  const progress = learningPlanProgress(plan, context.activities)
+  if (progress === undefined || !plan.plannedHours)
+    return { kind: 'answer', text: `Set total planned hours for ${plan.name} before calculating a target.` }
+  if (progress >= target)
+    return { kind: 'answer', text: `${plan.name} has already reached ${target}% progress.` }
+  const completed = new Set(context.activities
+    .filter((activity) => activity.learningPlanId === plan.id && activity.status === 'Completed' && activity.milestoneId)
+    .map((activity) => activity.milestoneId))
+  const missing = plan.milestones.filter((milestone) => !completed.has(milestone.id) && milestone.estimatedHours === undefined)
+  const candidates = plan.milestones.filter((milestone) => !completed.has(milestone.id) && milestone.estimatedHours !== undefined)
+  const needed = plan.plannedHours * target / 100 - completedPlannedHours(plan, context.activities)
+  let total = 0
+  const chosen: string[] = []
+  for (const milestone of candidates) {
+    if (total >= needed) break
+    total += milestone.estimatedHours!
+    chosen.push(`${milestone.title} (${milestone.estimatedHours} planned hours)`)
+  }
+  const list = chosen.slice(0, 10).join(', ')
+  const truncated = chosen.length > 10 ? ` and ${chosen.length - 10} more` : ''
+  const detail = total >= needed
+    ? `Complete: ${list}${truncated}.`
+    : `The estimated incomplete milestones cannot reach this target${list ? `: ${list}${truncated}` : ''}.`
+  return {
+    kind: 'answer',
+    text: `${plan.name} needs ${Number(needed.toPrecision(6))} more completed planned hours to reach ${target}%. ${detail}${missing.length ? ` ${missing.length} incomplete milestone(s) have no estimate; set their planned hours for complete guidance.` : ''} Progress is calculated automatically; the Coach cannot change it.`,
+  }
+}
+
+const recommendationResponse = (text: string): AgentResponse => ({
     kind: 'recommendation',
     title: 'Mock AI Recommendation',
     text,
   })
-  const eligiblePlans = context.eligibleLearningPlans ?? context.learningPlans
-  const completedPlans = context.completedLearningPlans ?? []
+function recommendation(context: LearningContext): AgentResponse {
+  const eligiblePlans = (context.eligibleLearningPlans ?? context.learningPlans).filter((plan) => plan.status !== 'Completed')
+  const completedPlans = context.learningPlans.filter((plan) => plan.status === 'Completed')
   if (!context.learningPlans.length)
-    return response(
+    return recommendationResponse(
       'No learning plans are available to base a recommendation on. Create a learning plan first.',
     )
   const recent = sortedActivities(context)
+  for (const status of ['In Progress', 'Not Started'] as const) {
+    const suggestion = suggestFromPlans(eligiblePlans.filter((plan) => plan.status === status), recent)
+    if (suggestion) return suggestion
+  }
+  if (!eligiblePlans.length && completedPlans.length)
+    return recommendationResponse(
+      `Your completed plans remain part of your learning history: ${completedPlans.map((plan) => plan.name).join(', ')}. Consider choosing or creating another learning plan; I will not recommend repeating a completed plan.`,
+    )
+  return recommendationResponse(
+    'No unfinished required milestone can be identified from the official milestone statuses. Review your eligible learning plans before choosing another activity.',
+  )
+}
+
+function suggestFromPlans(eligiblePlans: readonly Readonly<LearningPlan>[], recent: readonly Readonly<Activity>[]) {
   const hasCompletedSession = (
     plan: Readonly<LearningPlan>,
     milestoneId: string | null,
@@ -129,7 +189,7 @@ function recommendation(context: LearningContext): AgentResponse {
     )!
     const blocker = unfinishedSession.reflection.blockers.trim()
     const nextStep = unfinishedSession.reflection.nextStep.trim()
-    return response(
+    return recommendationResponse(
       [
         `Suggested activity: ${unfinishedSession.title}`,
         `Learning plan: ${plan.name}`,
@@ -157,7 +217,7 @@ function recommendation(context: LearningContext): AgentResponse {
       (item) => item.required && item.status !== 'Completed',
     )
     if (milestone)
-      return response(
+      return recommendationResponse(
         [
           `Suggested milestone: ${milestone.title}`,
           `Learning plan: ${plan.name}`,
@@ -172,16 +232,9 @@ function recommendation(context: LearningContext): AgentResponse {
     (plan) => !plan.milestones.length,
   )
   if (unstructuredPlan)
-    return response(
+    return recommendationResponse(
       `Learning plan: ${unstructuredPlan.name}\n\nNo milestones are defined for this plan. General suggestion: review its learning goal and choose an activity. There is not enough milestone data to recommend a specific next milestone.`,
     )
-  if (!eligiblePlans.length && completedPlans.length)
-    return response(
-      `Your completed plans remain part of your learning history: ${completedPlans.map((plan) => plan.name).join(', ')}. Consider choosing or creating another learning plan; I will not recommend repeating a completed plan.`,
-    )
-  return response(
-    'No unfinished required milestone can be identified from the official milestone statuses. Review your eligible learning plans before choosing another activity.',
-  )
 }
 
 export class MockAiCoachService implements AiCoachService {
@@ -201,6 +254,8 @@ export class MockAiCoachService implements AiCoachService {
         kind: 'answer',
         text: 'Your saved learning data is unavailable, so I cannot provide a reliable summary or recommendation right now. Please resolve the storage error shown in the application.',
       }
+    const targetAnswer = targetProgress(message, context)
+    if (targetAnswer) return targetAnswer
     if (
       /^(?:what should i learn next|what milestone should i do next|what should i focus on)$/.test(
         prompt,

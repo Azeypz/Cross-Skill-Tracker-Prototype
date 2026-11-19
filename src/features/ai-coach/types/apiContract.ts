@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { learningPlanStatuses } from '../../../types/activity'
 
 const evidenceSchema = z
   .object({
@@ -14,17 +15,20 @@ const milestoneSchema = z
     title: z.string().max(500),
     required: z.boolean(),
     status: z.enum(['Not Started', 'In Progress', 'Completed']),
+    estimatedHours: z.number().finite().positive().optional(),
   })
   .strict()
 
 const learningPlanSchema = z
   .object({
+    status: z.enum(learningPlanStatuses).default('Not Started'),
     id: z.string().min(1).max(200),
     name: z.string().max(500),
     description: z.string().optional(),
     targetSkill: z.string().optional(),
     targetCompletionDate: z.string().optional(),
     category: z.string().optional(),
+    plannedHours: z.number().finite().positive().optional(),
     milestones: z.array(milestoneSchema).max(500),
   })
   .strict()
@@ -37,7 +41,7 @@ const activitySchema = z
     learningPlanId: z.string().min(1).max(200),
     milestoneId: z.string().max(200).nullable(),
     category: z.string().max(500),
-    hours: z.number().finite().positive().max(24),
+    hours: z.number().finite().positive().max(24).optional(),
     status: z.enum(['Not Started', 'Completed', 'In Progress']),
     reflection: z
       .object({

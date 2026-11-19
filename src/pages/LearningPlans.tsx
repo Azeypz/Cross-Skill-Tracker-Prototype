@@ -1,67 +1,33 @@
 import { useState } from 'react'
-import type { FormEvent } from 'react'
-import { BookOpen, CheckCircle2, Plus, X } from 'lucide-react'
-import FormField from '../components/FormField'
+import { BookOpen, Plus } from 'lucide-react'
+import { isLearningPlanStatus, learningPlanStatuses, type LearningPlanStatus } from '../types/activity'
 import {
-  customNameError,
   learningPlanProgress,
-  learningPlanStatus,
 } from '../data/activityRepository'
 import { formatActivityDate } from '../data/sampleActivities'
-import type { LearningPlan, NewLearningPlanInput } from '../types/activity'
+import PlanHoursEditor from './PlanHoursEditor'
+import type { Activity, LearningPlan, PlanHoursInput } from '../types/activity'
 
 interface LearningPlansProps {
   learningPlans: LearningPlan[]
-  onSave: (input: NewLearningPlanInput) => void | Promise<void>
+  activities: Activity[]
+  customPlanIds: string[]
+  notice?: string
+  onSaveHours: (input: PlanHoursInput) => void | Promise<void>
+  onSaveStatus: (planId: string, status: LearningPlanStatus) => void
 }
 
 export default function LearningPlans({
   learningPlans,
-  onSave,
+  activities,
+  customPlanIds,
+  notice,
+  onSaveHours,
+  onSaveStatus,
 }: LearningPlansProps) {
-  const [creating, setCreating] = useState(false)
-  const [name, setName] = useState('')
-  const [saveError, setSaveError] = useState('')
-  const [notice, setNotice] = useState('')
-  const [isSaving, setIsSaving] = useState(false)
-  const nameError = customNameError(
-    name,
-    learningPlans.map((plan) => plan.name),
-    'learning plan',
-  )
-
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    if (isSaving) return
-    if (nameError) {
-      setSaveError(nameError)
-      const field = event.currentTarget.elements.namedItem('name')
-      if (field instanceof HTMLInputElement) field.focus()
-      return
-    }
-    const values = new FormData(event.currentTarget)
-    setSaveError('')
-    setIsSaving(true)
-    try {
-      await onSave({
-        name,
-        description: String(values.get('description')),
-        targetSkill: String(values.get('targetSkill')),
-        targetCompletionDate: String(values.get('targetCompletionDate')),
-      })
-      setName('')
-      setCreating(false)
-      setNotice('Learning plan created successfully.')
-    } catch (error) {
-      setSaveError(
-        error instanceof Error
-          ? error.message
-          : 'Learning plan could not be saved. Please try again.',
-      )
-    } finally {
-      setIsSaving(false)
-    }
-  }
+  const [statusError, setStatusError] = useState('')
+  const [editingPlanId, setEditingPlanId] = useState<string>()
+  const editingPlan = learningPlans.find((plan) => plan.id === editingPlanId)
 
   return (
     <div className="activity-page learning-plans-page">
@@ -70,120 +36,23 @@ export default function LearningPlans({
           <h1>Learning Plans</h1>
           <p>Plan the path. Prove the progress.</p>
         </div>
-        {!creating && (
-          <button
-            type="button"
-            className="primary-button"
-            onClick={() => {
-              setName('')
-              setSaveError('')
-              setNotice('')
-              setCreating(true)
-            }}
-          >
+          <a className="primary-button" href="#/learning-plans/new">
             <Plus size={18} aria-hidden="true" />
             New Learning Plan
-          </button>
-        )}
+          </a>
       </div>
-      {notice && (
-        <div className="save-notice" role="status">
-          <CheckCircle2 size={17} aria-hidden="true" />
-          <span>{notice}</span>
-          <button
-            type="button"
-            className="action-icon"
-            title="Dismiss notification"
-            aria-label="Dismiss notification"
-            onClick={() => setNotice('')}
-          >
-            <X size={16} />
-          </button>
-        </div>
-      )}
-      {creating && (
-        <form
-          className="activity-form learning-plan-form"
-          aria-labelledby="create-plan-heading"
-          onSubmit={handleSubmit}
-        >
-          <h2 id="create-plan-heading">New Learning Plan</h2>
-          <FormField id="plan-name" label="Learning Plan Name" required>
-            <input
-              id="plan-name"
-              name="name"
-              placeholder="Enter learning plan name"
-              value={name}
-              required
-              autoFocus
-              aria-invalid={Boolean(name && nameError)}
-              aria-describedby={
-                name && nameError ? 'plan-name-error' : undefined
-              }
-              onChange={(event) => {
-                setName(event.target.value)
-                setSaveError('')
-              }}
-            />
-            {name && nameError && (
-              <p className="field-error" id="plan-name-error" role="alert">
-                {nameError}
-              </p>
-            )}
-          </FormField>
-          <FormField id="plan-description" label="Description">
-            <textarea
-              id="plan-description"
-              name="description"
-              placeholder="Describe your learning goal"
-              rows={3}
-            />
-          </FormField>
-          <div className="form-columns">
-            <FormField id="plan-target-skill" label="Target Skill">
-              <input
-                id="plan-target-skill"
-                name="targetSkill"
-                placeholder="e.g. Cloud architecture"
-              />
-            </FormField>
-            <FormField id="plan-target-date" label="Target Completion Date">
-              <input
-                id="plan-target-date"
-                name="targetCompletionDate"
-                type="date"
-              />
-            </FormField>
-          </div>
-          {saveError && (
-            <p className="form-save-error" role="alert">
-              {saveError}
-            </p>
-          )}
-          <div className="form-actions">
-            <button
-              type="button"
-              className="secondary-button"
-              disabled={isSaving}
-              onClick={() => {
-                setCreating(false)
-                setName('')
-                setSaveError('')
-              }}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="primary-button"
-              disabled={isSaving}
-            >
-              {isSaving ? 'Creating...' : 'Create Learning Plan'}
-            </button>
-          </div>
-        </form>
+      {notice && <p className="save-notice" role="status">{notice}</p>}
+      {editingPlan && (
+        <PlanHoursEditor
+          key={editingPlan.id}
+          plan={editingPlan}
+          canAddMilestone={customPlanIds.includes(editingPlan.id)}
+          onSave={onSaveHours}
+          onCancel={() => setEditingPlanId(undefined)}
+        />
       )}
       <section aria-label="Existing learning plans">
+        {statusError && <p className="form-save-error" role="alert">{statusError}</p>}
         <div
           className="activity-table-scroll"
           role="region"
@@ -203,6 +72,7 @@ export default function LearningPlans({
                   'Target Completion Date',
                   'Status',
                   'Progress',
+                  'Planned hours',
                 ].map((column) => (
                   <th key={column} scope="col">
                     {column}
@@ -211,27 +81,86 @@ export default function LearningPlans({
               </tr>
             </thead>
             <tbody>
-              {learningPlans.map((plan) => (
-                <tr key={plan.id}>
-                  <td>
-                    <div className="learning-plan-name">
-                      <BookOpen size={19} aria-hidden="true" />
-                      <span>{plan.name}</span>
-                    </div>
-                  </td>
-                  <td className="learning-plan-description">
-                    {plan.description || 'Not set'}
-                  </td>
-                  <td>{plan.targetSkill || 'Not set'}</td>
-                  <td>
-                    {plan.targetCompletionDate
-                      ? formatActivityDate(plan.targetCompletionDate)
-                      : 'Not set'}
-                  </td>
-                  <td>{learningPlanStatus(plan)}</td>
-                  <td>{learningPlanProgress(plan).toFixed(1)}%</td>
-                </tr>
-              ))}
+              {learningPlans.map((plan) => {
+                const progress = learningPlanProgress(plan, activities)
+                const progressLabel = progress === undefined
+                  ? 'Unavailable'
+                  : progress > 0 && progress < 0.1
+                    ? '<0.1%'
+                    : `${progress < 100 && progress.toFixed(1) === '100.0' ? '99.9' : Number(progress.toFixed(1))}%`
+                return (
+                  <tr key={plan.id}>
+                    <td>
+                      <div className="learning-plan-name">
+                        <BookOpen size={19} aria-hidden="true" />
+                        <span title={plan.name}>{plan.name}</span>
+                        {plan.creationState === 'Draft' && <a href={`#/learning-plans/draft/${plan.id}`}>Edit draft</a>}
+                      </div>
+                    </td>
+                    <td className="learning-plan-description" title={plan.description || undefined}>
+                      {plan.description || 'Not set'}
+                    </td>
+                    <td className="learning-plan-text" title={plan.targetSkill || undefined}>
+                      {plan.targetSkill || 'Not set'}
+                    </td>
+                    <td>
+                      {plan.targetCompletionDate
+                        ? formatActivityDate(plan.targetCompletionDate)
+                        : 'Not set'}
+                    </td>
+                    <td>
+                      <select
+                        aria-label={`Status for ${plan.name}`}
+                        className={`activity-status status-${plan.status.toLowerCase().replace(' ', '-')}`}
+                        value={plan.status}
+                        disabled={plan.creationState === 'Draft'}
+                        onChange={(event) => {
+                          const status = event.target.value
+                          try {
+                            if (!isLearningPlanStatus(status)) throw new Error('Select a valid learning plan status.')
+                            onSaveStatus(plan.id, status)
+                            setStatusError('')
+                          } catch (error) {
+                            setStatusError(error instanceof Error ? error.message : 'Learning plan status was not saved.')
+                          }
+                        }}
+                      >
+                        {learningPlanStatuses.map((status) => <option key={status}>{status}</option>)}
+                      </select>
+                    </td>
+                    <td>
+                      <div className="learning-plan-progress">
+                        <span>{progressLabel}</span>
+                        {progress !== undefined && (
+                          <div
+                            className="learning-plan-progress-track"
+                            role="progressbar"
+                            aria-label={`${plan.name} progress`}
+                            aria-valuemin={0}
+                            aria-valuemax={100}
+                            aria-valuenow={progress}
+                          >
+                            <span style={{ width: `${progress}%` }} />
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                    <td>
+                      <div className="learning-plan-hours">
+                        <span>{plan.plannedHours === undefined ? 'Not set' : `${plan.plannedHours} hrs`}</span>
+                        <button
+                          type="button"
+                          className="secondary-button learning-plan-hours-edit"
+                          disabled={plan.creationState === 'Draft'}
+                          onClick={() => setEditingPlanId(plan.id)}
+                        >
+                          Edit<span className="visually-hidden"> planned hours for {plan.name}</span>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>

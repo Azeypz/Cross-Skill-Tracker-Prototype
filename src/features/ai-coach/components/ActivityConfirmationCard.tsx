@@ -2,6 +2,7 @@ import { Check, Pencil, X } from 'lucide-react'
 import type { ActivityDraft, DraftStage } from '../types/activityDraft'
 import type { LearningContext } from '../types/chat'
 import { formatActivityDate } from '../../../data/sampleActivities'
+import { formatActivityHours } from '../../../data/activityHours'
 import ActivityDraftEditor from './ActivityDraftEditor'
 
 export interface ActivityConfirmationProps {
@@ -58,7 +59,7 @@ export default function ActivityConfirmationCard(
           <dt>Category</dt>
           <dd>{draft.category}</dd>
           <dt>Hours Spent</dt>
-          <dd>{draft.hours}</dd>
+          <dd>{draft.hours === undefined ? 'Not provided' : formatActivityHours(draft.hours)}</dd>
           <dt>Task Status</dt>
           <dd>{draft.status}</dd>
           <dt>What did you learn?</dt>

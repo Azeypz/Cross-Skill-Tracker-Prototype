@@ -93,7 +93,7 @@ function assign(
   if (field === 'date') draft.date = sessionDate(text, now)
   else if (field === 'hours') {
     const amount = text.replace(/\s*(?:hours?|hrs?)\.?$/i, '').trim()
-    draft.hours = numberWords[normalized(amount)] ?? Number(amount)
+    draft.hours = amount === '' ? undefined : numberWords[normalized(amount)] ?? Number(amount)
   } else if (field === 'status') {
     const status = normalized(text)
     draft.status = /^(?:completed|complete|finished|done)$/.test(status)
@@ -205,7 +205,12 @@ export function collectActivityDraft(
     }
   }
   const plan = findPlan({ ...draft, ...changes }, context)
-  if (!changes.category && plan?.category) changes.category = plan.category
+  if (
+    !changes.category &&
+    plan?.category &&
+    normalized(draft.category ?? '') !== normalized(plan.category)
+  )
+    changes.category = plan.category
   if (!changes.activity) {
     const matchedMilestones = plan?.milestones.filter((item) =>
       mentions(message, item.title),

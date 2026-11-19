@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { X } from 'lucide-react'
-import { formatActivityDate } from '../data/sampleActivities'
+import { activityLearningPlanName, formatActivityDate } from '../data/sampleActivities'
+import { formatActivityHours } from '../data/activityHours'
 import type { Activity, LearningPlan } from '../types/activity'
 import StatusBadge from './StatusBadge'
 
@@ -48,16 +49,13 @@ export default function ActivityDetails({
       </div>
       <p className="detail-meta">
         {formatActivityDate(activity.date)} <span aria-hidden="true">/</span>{' '}
-        {activity.hours} hours
+        {formatActivityHours(activity.hours)}
       </p>
       <StatusBadge status={activity.status} />
       <dl className="session-details">
         <dt>Learning Plan</dt>
         <dd>
-          {
-            learningPlans.find((plan) => plan.id === activity.learningPlanId)
-              ?.name
-          }
+          {activityLearningPlanName(activity.learningPlanId, learningPlans)}
         </dd>
         <dt>Category</dt>
         <dd>{activity.category}</dd>

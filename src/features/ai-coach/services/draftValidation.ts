@@ -1,4 +1,5 @@
 import type { ActivityStatus, NewActivityInput } from '../../../types/activity'
+import { activityHoursError, validActivityHours } from '../../../data/activityHours'
 import type { ActivityDraft, DraftIssue } from '../types/activityDraft'
 import type { LearningContext } from '../types/chat'
 
@@ -95,16 +96,10 @@ export function validateActivityDraft(
       field: 'category',
       message: `Category must match the selected Learning Plan (${plan.category}).`,
     })
-  if (
-    draft.hours === undefined ||
-    !Number.isFinite(draft.hours) ||
-    draft.hours <= 0 ||
-    draft.hours > 24
-  )
+  if (!validActivityHours(draft.hours))
     issues.push({
       field: 'hours',
-      message:
-        'How many hours did you spend? Enter more than 0 and no more than 24.',
+      message: activityHoursError,
     })
   if (
     draft.status !== 'Not Started' &&
@@ -170,7 +165,7 @@ export function toActivityInput(
       (item) => normalized(item) === normalized(draft.category!),
     )!,
     newCategoryName: '',
-    hours: draft.hours!,
+    hours: draft.hours,
     status: draft.status as ActivityStatus,
     reflection: {
       learning: draft.learned!.trim(),

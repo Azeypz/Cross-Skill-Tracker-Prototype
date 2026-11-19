@@ -863,38 +863,83 @@ input::file-selector-button {
   font-weight: 650;
 }
 .learning-plans-table {
-  min-width: 820px;
+  min-width: 1200px;
 }
 .learning-plans-table th:nth-child(1) {
-  width: 22%;
+  width: 20%;
 }
 .learning-plans-table th:nth-child(2) {
-  width: 30%;
+  width: 25%;
 }
 .learning-plans-table th:nth-child(3) {
-  width: 17%;
+  width: 14%;
 }
 .learning-plans-table th:nth-child(4) {
-  width: 15%;
+  width: 14%;
 }
-.learning-plans-table th:nth-child(5),
+.learning-plans-table th:nth-child(5) {
+  width: 10%;
+}
 .learning-plans-table th:nth-child(6) {
   width: 8%;
 }
+.learning-plans-table th:nth-child(7) {
+  width: 9%;
+  text-align: left;
+}
+.learning-plans-table th,
 .learning-plans-table td {
-  vertical-align: top;
+  padding: 10px 8px;
+  vertical-align: middle;
+  white-space: nowrap;
+  overflow-wrap: normal;
 }
 .learning-plan-name {
   display: flex;
-  align-items: flex-start;
-  gap: 10px;
+  align-items: center;
+  gap: 8px;
   font-weight: 550;
 }
 .learning-plan-name svg {
   color: var(--primary);
+  flex-shrink: 0;
 }
-.learning-plan-description {
-  white-space: pre-wrap;
+.learning-plan-name span,
+.learning-plan-description,
+.learning-plan-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.learning-plan-progress {
+  display: grid;
+  gap: 4px;
+  font-variant-numeric: tabular-nums;
+}
+.learning-plan-progress-track {
+  width: 100%;
+  height: 5px;
+  border-radius: 5px;
+  background: #f0edf6;
+  overflow: hidden;
+}
+.learning-plan-progress-track span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--primary);
+}
+.learning-plan-hours {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  font-variant-numeric: tabular-nums;
+}
+.learning-plans-table .learning-plan-hours-edit {
+  min-height: 0;
+  padding: 2px 8px;
+  white-space: nowrap;
 }
 .learning-plans-count {
   margin: 20px 7px;

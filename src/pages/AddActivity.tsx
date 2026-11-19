@@ -72,7 +72,7 @@ export default function AddActivity({
         title: activityTitle,
         category,
         newCategoryName: category === otherOption ? newCategoryName : '',
-        hours: Number(values.get('hours')),
+        hours: values.get('hours') === '' ? undefined : Number(values.get('hours')),
         status: values.get('status') as ActivityStatus,
         reflection: {
           learning: String(values.get('learning')).trim(),
@@ -252,17 +252,16 @@ export default function AddActivity({
           </FormField>
         )}
         <div className="form-columns">
-          <FormField id="hours-spent" label="Hours Spent" required>
+          <FormField id="hours-spent" label="Hours Spent">
             <div className="hours-input">
               <input
                 id="hours-spent"
                 name="hours"
                 type="number"
                 placeholder="e.g. 1.5"
-                min="0.01"
+                min="0"
                 max="24"
                 step="0.25"
-                required
               />
               <span>hours</span>
             </div>

@@ -2,6 +2,17 @@ import express, { type ErrorRequestHandler } from 'express'
 import aiCoachRouter from './aiCoachRoute.ts'
 
 const app = express()
+if (app.get('env') === 'development') {
+  app.use((request, response, next) => {
+    const pathname = request.path
+    if (pathname === '/api/ai-coach/message' || pathname === '/health') {
+      response.once('finish', () => {
+        console.info(`[express] ${new Date().toISOString()} ${request.method} ${pathname} ${response.statusCode}`)
+      })
+    }
+    next()
+  })
+}
 app.use(express.json({ limit: '256kb' }))
 app.get('/', (_request, response) => {
   response.status(200).json({

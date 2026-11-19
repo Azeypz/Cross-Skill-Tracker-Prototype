@@ -11,7 +11,8 @@ import {
   BookOpen,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-import { formatActivityDate } from '../data/sampleActivities'
+import { activityLearningPlanName, formatActivityDate } from '../data/sampleActivities'
+import { formatActivityHours } from '../data/activityHours'
 import type { Activity, LearningPlan } from '../types/activity'
 import StatusBadge from './StatusBadge'
 import ActivityDetails from './ActivityDetails'
@@ -98,14 +99,12 @@ export default function ActivityTable({
                     </div>
                   </td>
                   <td>
-                    {
-                      learningPlans.find(
-                        (plan) => plan.id === activity.learningPlanId,
-                      )?.name
-                    }
+                    {activityLearningPlanName(activity.learningPlanId, learningPlans)}
                   </td>
                   <td>{activity.category}</td>
-                  <td className="activity-hours">{activity.hours}</td>
+                  <td className="activity-hours">
+                    {formatActivityHours(activity.hours)}
+                  </td>
                   <td>
                     <StatusBadge status={activity.status} />
                   </td>

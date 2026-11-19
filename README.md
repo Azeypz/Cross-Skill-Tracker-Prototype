@@ -2,8 +2,8 @@
 
 A React + TypeScript application powered by Vite, plain CSS, and Lucide icons.
 The current experience focuses on My Activity Log, Add Activity, independent
-Learning Plan creation, and a mock AI Learning Coach with confirmed activity drafts. No backend,
-database, or authentication is included.
+Learning Plan creation, and a mock AI Learning Coach with confirmed activity drafts. A small
+Express API serves the Coach; no database or authentication is included.
 
 ## Getting Started
 
@@ -11,15 +11,22 @@ Use Node.js 20.19+ (20.x) or 22.12+ and npm.
 
 ```sh
 npm install
-npm run dev
+npm run dev:server   # Coach API on http://127.0.0.1:3000
+npm run dev          # in a second terminal
 ```
 
-Open the local URL printed by Vite. In a development container, use
-`npm run dev -- --host 0.0.0.0` and forward the printed port if needed.
+Vite proxies `/api` to the Coach API on port 3000. If the API is not running,
+the Coach reports that it is unavailable (in development, with the specific reason).
+
+Open the local URL printed by Vite. In Codespaces, open port 5173 from the
+Ports panel while signed in. Vite serves HTTP on that port and accepts the
+current Codespace's forwarded hostname. Port 3000 does not need to be public.
 
 ## Commands
 
 - `npm run dev`: start the development server with hot reload.
+- `npm run dev:server`: start the Coach API (`GET /health`, `POST /api/ai-coach/message`).
+- `npm test`: run the Node test suite in `tests/`.
 - `npm run build`: run strict TypeScript checks and build into `dist/`.
 - `npm run preview`: serve the production build locally after building.
 
@@ -73,6 +80,12 @@ optionally add reflections and evidence metadata. For a plan without predefined
 milestones, enter the session activity as text; this does not create a required
 milestone or manually change plan progress.
 
+The built-in plans are Azure, Oracle Database, Google Cloud Platform, SQL DBA,
+Claude, and AWS. Each has its own Certification and Upskilling milestones; the
+milestone dropdown shows only those belonging to the selected plan. Existing
+custom plans remain available. Historical activities retain their recorded
+titles and are not reassigned to the new milestones.
+
 Select **Other** to create a learning plan or category. The required custom name
 appears directly below its dropdown and is cleared when switching back to an
 existing option. Names are trimmed, repeated whitespace is normalized, and
@@ -98,8 +111,30 @@ available after refresh. Add Activity prompts for the session category when the
 plan has none. Older saved plans without the new metadata remain compatible;
 their missing fields display as Not set. Cancel does not save a plan.
 
-This iteration is create-and-list only: no editing, deletion, milestone
-management, progress calculation, or external integrations are included.
+Use **Edit planned hours** to set a plan's total planned hours and the estimate
+for each milestone. Custom plans can also add planned milestones there. Progress
+is the sum of estimates for milestones with at least one completed activity
+linked to that plan, divided by total planned hours, capped at 100%. Repeated
+sessions for a milestone count only once; logged Hours Spent does not determine
+progress. Activities without a linked milestone and milestones without an
+estimate contribute no planned hours. Without a total, percentage progress is
+unavailable. Plan status is a separate manual choice: Not Started (the default),
+In Progress, or Completed. Set it when creating a plan or change it in the
+Learning Plans table. Changes persist without altering milestone progress.
+
+**New Learning Plan** opens three steps: define the capability and dates, set
+milestone criteria, then assign optional proposed activities and review. Continue
+and Back do not write to storage. **Save as Draft** keeps a Not Started plan
+that you can reopen with **Edit draft**. **Create Learning Plan** publishes
+the reviewed plan to Add Activity and Coach context. Proposed activities are
+planning notes, not logged sessions or evidence of completed hours.
+
+The Coach prioritizes active plans and keeps completed plans as history.
+Saved Coach-generated plans include the reviewed
+estimates; older plans need their hours entered manually.
+
+The Coach can suggest incomplete estimated milestones when asked, for example,
+“How do I reach 50% progress for Azure?” It cannot change progress directly.
 
 ## AI Learning Coach: Phase 2
 
@@ -113,13 +148,12 @@ Open the floating AI Coach button on any page. The panel supports these prompts:
 `AiCoachService` defines the asynchronous service boundary. The current
 `MockAiCoachService` produces deterministic replies from the activities and plans
 already loaded by the application, including saved custom records. It does not
-call a model, Google ADK, or any backend. The three learning-summary and
+call a model or Google ADK; it runs behind the Express API. The learning-summary and
 recommendation prompts remain read-only.
 
 Recommendations are labeled **Mock AI Recommendation** and use recorded sessions,
 required milestones, blockers, and next steps. Missing prerequisite order is
-explicitly identified as a general suggestion. No official progress percentage
-is calculated or inferred. Missing records are reported, not invented.
+explicitly identified as a general suggestion. Missing records are reported, not invented.
 
 ### Conversational Activity Creation
 

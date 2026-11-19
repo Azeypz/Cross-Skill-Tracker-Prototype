@@ -2,11 +2,7 @@ import { useRef, useState } from 'react'
 import AiCoachButton from './components/AiCoachButton'
 import AiCoachPanel from './components/AiCoachPanel'
 import { useAiCoach } from './hooks/useAiCoach'
-import { MockAiCoachService } from './services/mockAiCoachService'
-import {
-  ApiAiCoachService,
-  FallbackAiCoachService,
-} from './services/apiAiCoachService'
+import { ApiAiCoachService } from './services/apiAiCoachService'
 import type { AiCoachService } from './services/aiCoachService'
 import type { LearningContext } from './types/chat'
 import type {
@@ -16,11 +12,7 @@ import type {
 } from '../../types/activity'
 import './ai-coach.css'
 
-const mockService = new MockAiCoachService()
-const apiService = new FallbackAiCoachService(
-  new ApiAiCoachService(),
-  mockService,
-)
+const apiService = new ApiAiCoachService()
 
 export default function AiCoach({
   context,
@@ -40,6 +32,7 @@ export default function AiCoach({
     context,
     onSaveActivity,
     onSaveLearningPlan,
+    import.meta.env.DEV,
   )
   function closePanel() {
     setOpen(false)

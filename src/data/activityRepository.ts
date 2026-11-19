@@ -1,4 +1,7 @@
 import { categories, learningPlans } from './sampleActivities'
+import { isLearningPlanStatus } from '../types/activity'
+import { wizardError, type CreationState, type PlanWizard } from './planWizard'
+import { activityHoursError, validActivityHours } from './activityHours'
 import type {
   Activity,
   ActivityData,
@@ -8,6 +11,7 @@ import type {
   MilestoneStatus,
   NewActivityInput,
   NewLearningPlanInput,
+  PlanHoursInput,
 } from '../types/activity'
 
 export const otherOption = '__other__'
@@ -58,10 +62,19 @@ export function initialActivityData(): ActivityData {
 }
 
 export function activityCatalog(data: ActivityData) {
-  const plans = [...learningPlans, ...data.customLearningPlans].map((plan) => ({
+  const builtIns = learningPlans.map((plan) => ({
+    ...plan, status: data.builtInPlanStatuses?.[plan.id] ?? plan.status,
+  }))
+  const plans = [...builtIns, ...data.customLearningPlans].map((plan) => ({
     ...plan,
+    plannedHours: data.planHours?.[plan.id]
+      ? data.planHours[plan.id].plannedHours
+      : plan.plannedHours,
     milestones: plan.milestones.map((milestone) => ({
       ...milestone,
+      estimatedHours: data.planHours?.[plan.id]
+        ? data.planHours[plan.id].milestoneHours[milestone.id]
+        : milestone.estimatedHours,
       status: data.milestoneProgress[milestone.id] ?? milestone.status,
     })),
   }))
@@ -71,26 +84,23 @@ export function activityCatalog(data: ActivityData) {
   }
 }
 
-export function learningPlanProgress(plan: LearningPlan) {
-  const required = plan.milestones.filter((milestone) => milestone.required)
-  if (!required.length) return 0
-  return (
-    (required.filter((milestone) => milestone.status === 'Completed').length /
-      required.length) *
-    100
+export function completedPlannedHours(
+  plan: Readonly<LearningPlan>,
+  activities: readonly Readonly<Activity>[],
+) {
+  const completed = new Set(activities
+    .filter((activity) => activity.learningPlanId === plan.id && activity.status === 'Completed' && activity.milestoneId)
+    .map((activity) => activity.milestoneId))
+  return plan.milestones.reduce(
+    (total, milestone) => total + (completed.has(milestone.id) ? milestone.estimatedHours ?? 0 : 0),
+    0,
   )
 }
 
-export function learningPlanStatus(plan: LearningPlan): LearningPlanStatus {
-  const required = plan.milestones.filter((milestone) => milestone.required)
-  if (
-    required.length > 0 &&
-    required.every((milestone) => milestone.status === 'Completed')
-  )
-    return 'Completed'
-  if (required.some((milestone) => milestone.status !== 'Not Started'))
-    return 'In Progress'
-  return 'Not Started'
+export function learningPlanProgress(plan: Readonly<LearningPlan>, activities: readonly Readonly<Activity>[]) {
+  if (!plan.plannedHours) return undefined
+  const progress = completedPlannedHours(plan, activities) / plan.plannedHours * 100
+  return progress >= 100 - 1e-12 ? 100 : progress
 }
 
 export function resetPrototypeData() {
@@ -121,6 +131,10 @@ function isOptionalText(value: unknown) {
   return value === undefined || typeof value === 'string'
 }
 
+function isOptionalHours(value: unknown): value is number | undefined {
+  return value === undefined || (typeof value === 'number' && Number.isFinite(value) && value > 0)
+}
+
 function isMilestoneStatus(value: unknown): value is MilestoneStatus {
   return milestoneStatuses.includes(value as MilestoneStatus)
 }
@@ -135,12 +149,13 @@ function isOptionalTargetDate(value: unknown) {
   )
 }
 
-function isLearningPlan(value: unknown): value is LearningPlan {
+function isStoredLearningPlan(value: unknown): value is Omit<LearningPlan, 'status'> & { status?: unknown } {
   return (
     isRecord(value) &&
     isNonemptyString(value.id) &&
     isNonemptyString(value.name) &&
     (value.category === undefined || isNonemptyString(value.category)) &&
+    isOptionalHours(value.plannedHours) &&
     isOptionalText(value.description) &&
     isOptionalText(value.targetSkill) &&
     isOptionalTargetDate(value.targetCompletionDate) &&
@@ -151,6 +166,7 @@ function isLearningPlan(value: unknown): value is LearningPlan {
         isNonemptyString(milestone.id) &&
         isNonemptyString(milestone.title) &&
         typeof milestone.required === 'boolean' &&
+        isOptionalHours(milestone.estimatedHours) &&
         (milestone.status === undefined || isMilestoneStatus(milestone.status)),
     )
   )
@@ -168,10 +184,11 @@ function isActivity(value: unknown): value is Activity {
     isNonemptyString(value.learningPlanId) &&
     (value.milestoneId === null || isNonemptyString(value.milestoneId)) &&
     isNonemptyString(value.category) &&
-    typeof value.hours === 'number' &&
-    Number.isFinite(value.hours) &&
-    value.hours > 0 &&
-    value.hours <= 24 &&
+    (value.hours === undefined ||
+      (typeof value.hours === 'number' &&
+        Number.isFinite(value.hours) &&
+        value.hours > 0 &&
+        value.hours <= 24)) &&
     (value.status === 'Not Started' ||
       value.status === 'Completed' ||
       value.status === 'In Progress') &&
@@ -204,7 +221,7 @@ function recalculateMilestoneProgress(
           ? 'Completed'
           : records.some((activity) => activity.status === 'In Progress')
             ? 'In Progress'
-            : 'Not Started'
+            : records.length ? 'Not Started' : milestone.initialStatus ?? 'Not Started'
         return [milestone.id, status]
       }),
     ),
@@ -230,9 +247,19 @@ function load(): ActivityData {
       !Array.isArray(stored.activities) ||
       !stored.activities.every(isActivity) ||
       !Array.isArray(stored.customLearningPlans) ||
-      !stored.customLearningPlans.every(isLearningPlan) ||
+      !stored.customLearningPlans.every(isStoredLearningPlan) ||
       !Array.isArray(stored.customCategories) ||
       !stored.customCategories.every(isNonemptyString) ||
+      (stored.planHours !== undefined &&
+        (!isRecord(stored.planHours) ||
+          !Object.values(stored.planHours).every((settings) =>
+            isRecord(settings) &&
+            isOptionalHours(settings.plannedHours) &&
+            isRecord(settings.milestoneHours) &&
+            Object.values(settings.milestoneHours).every(
+              (hours) => hours !== undefined && isOptionalHours(hours),
+            ),
+          ))) ||
       (stored.milestoneProgress !== undefined &&
         (!isRecord(stored.milestoneProgress) ||
           !Object.values(stored.milestoneProgress).every(isMilestoneStatus)))
@@ -241,9 +268,16 @@ function load(): ActivityData {
     }
     const data: ActivityData = {
       activities: stored.activities,
-      customLearningPlans: stored.customLearningPlans,
+      customLearningPlans: stored.customLearningPlans.map((plan) => ({
+        ...plan, status: isLearningPlanStatus(plan.status) ? plan.status : 'Not Started',
+      })),
+      builtInPlanStatuses: Object.fromEntries(
+        Object.entries(isRecord(stored.builtInPlanStatuses) ? stored.builtInPlanStatuses : {})
+          .filter((entry): entry is [string, LearningPlanStatus] => isLearningPlanStatus(entry[1])),
+      ),
       customCategories: stored.customCategories,
       milestoneProgress: {},
+      planHours: stored.planHours as ActivityData['planHours'],
     }
     return {
       ...data,
@@ -282,8 +316,12 @@ function saveLearningPlan(input: NewLearningPlanInput): ActivityData {
     'learning plan',
   )
   if (nameError) throw new Error(nameError)
+  if (input.status !== undefined && !isLearningPlanStatus(input.status))
+    throw new Error('Select a valid learning plan status.')
   if (!isOptionalTargetDate(input.targetCompletionDate))
     throw new Error('Enter a valid target completion date.')
+  if (!isOptionalHours(input.plannedHours))
+    throw new Error('Total planned hours must be greater than zero.')
   const milestones = input.milestones ?? []
   if (
     !Array.isArray(milestones) ||
@@ -292,17 +330,20 @@ function saveLearningPlan(input: NewLearningPlanInput): ActivityData {
         isNonemptyString(milestone.id) &&
         isNonemptyString(milestone.title) &&
           typeof milestone.required === 'boolean' &&
+          isOptionalHours(milestone.estimatedHours) &&
           (milestone.status === undefined || isMilestoneStatus(milestone.status)),
     )
   )
     throw new Error('Learning plan activities are invalid.')
   const plan: LearningPlan = {
+    status: input.status ?? 'Not Started',
     id: crypto.randomUUID(),
     name: normalizeName(input.name),
     description: input.description.trim(),
     targetSkill: normalizeName(input.targetSkill),
     targetCompletionDate: input.targetCompletionDate,
     category: input.category ? normalizeName(input.category) : undefined,
+    plannedHours: input.plannedHours,
     milestones: milestones.map((milestone) => ({
       ...milestone,
       status: milestone.status ?? 'Not Started',
@@ -321,7 +362,82 @@ function saveLearningPlan(input: NewLearningPlanInput): ActivityData {
   )
 }
 
+function saveWizard(input: PlanWizard, state: CreationState, draftId?: string): ActivityData {
+  const data = load()
+  const plans = activityCatalog(data).learningPlans
+  if (draftId && !plans.some((p) => p.id === draftId && p.creationState === 'Draft'))
+    throw new Error('This draft is no longer available to edit.')
+  const nameError = customNameError(input.name, plans.filter((p) => p.id !== draftId).map((p) => p.name), 'learning plan')
+  if (nameError) throw new Error(nameError)
+  for (const step of [1, 2, 3] as const) {
+    const error = wizardError(input, step, state)
+    if (error) throw new Error(error)
+  }
+  const { customCategory, category, milestones, ...details } = input
+  const plan: LearningPlan = {
+    ...details, id: draftId ?? crypto.randomUUID(), name: normalizeName(input.name),
+    description: input.description.trim(), targetSkill: input.targetSkill.trim(),
+    category: normalizeName(category === 'Other' ? customCategory : category), categoryIsCustom: category === 'Other',
+    creationState: state, status: state === 'Draft' ? 'Not Started' : input.status,
+    milestones: milestones.map((m) => ({ ...m, title: m.title.trim(), status: m.initialStatus })),
+  }
+  return persist({
+    ...data,
+    customLearningPlans: draftId
+      ? data.customLearningPlans.map((p) => p.id === draftId ? plan : p)
+      : [...data.customLearningPlans, plan],
+    customCategories: state === 'Created' && !activityCatalog(data).categories.includes(plan.category!)
+      ? [...data.customCategories, plan.category!] : data.customCategories,
+  }, 'Learning plan')
+}
+
+function savePlanStatus(planId: string, status: LearningPlanStatus): ActivityData {
+  if (!isLearningPlanStatus(status)) throw new Error('Select a valid learning plan status.')
+  const data = load()
+  if (learningPlans.some((plan) => plan.id === planId))
+    return persist({ ...data, builtInPlanStatuses: { ...data.builtInPlanStatuses, [planId]: status } }, 'Learning plan status')
+  if (!data.customLearningPlans.some((plan) => plan.id === planId))
+    throw new Error('Learning plan not found.')
+  return persist({
+    ...data,
+    customLearningPlans: data.customLearningPlans.map((plan) => plan.id === planId ? { ...plan, status } : plan),
+  }, 'Learning plan status')
+}
+
+function savePlanHours(input: PlanHoursInput): ActivityData {
+  const data = load()
+  const plan = activityCatalog(data).learningPlans.find((item) => item.id === input.planId)
+  if (!plan) throw new Error('Learning plan not found.')
+  if (!isOptionalHours(input.plannedHours) ||
+    !Object.values(input.milestoneHours).every((hours) => hours !== undefined && isOptionalHours(hours)))
+    throw new Error('Planned hours must be greater than zero.')
+  if (Object.keys(input.milestoneHours).some((id) => !plan.milestones.some((milestone) => milestone.id === id)))
+    throw new Error('A milestone does not belong to this learning plan.')
+  let customLearningPlans = data.customLearningPlans
+  const milestoneHours = { ...input.milestoneHours }
+  if (input.newMilestone) {
+    if (!isNonemptyString(input.newMilestone.title) || input.newMilestone.estimatedHours === undefined || !isOptionalHours(input.newMilestone.estimatedHours))
+      throw new Error('Enter a milestone title and positive planned hours.')
+    if (!customLearningPlans.some((item) => item.id === plan.id))
+      throw new Error('New milestones can only be added to custom learning plans.')
+    const milestone = {
+      id: crypto.randomUUID(), title: normalizeName(input.newMilestone.title),
+      required: true, status: 'Not Started' as MilestoneStatus,
+    }
+    milestoneHours[milestone.id] = input.newMilestone.estimatedHours
+    customLearningPlans = customLearningPlans.map((item) =>
+      item.id === plan.id ? { ...item, milestones: [...item.milestones, milestone] } : item,
+    )
+  }
+  return persist({
+    ...data,
+    customLearningPlans,
+    planHours: { ...data.planHours, [plan.id]: { plannedHours: input.plannedHours, milestoneHours } },
+  }, 'Planned hours')
+}
+
 function saveActivity(input: NewActivityInput): ActivityData {
+  if (!validActivityHours(input.hours)) throw new Error(activityHoursError)
   const data = load()
   if (
     input.idempotencyKey &&
@@ -352,6 +468,7 @@ function saveActivity(input: NewActivityInput): ActivityData {
     ? {
         id: crypto.randomUUID(),
         name: normalizeName(input.newLearningPlanName),
+        status: 'Not Started',
         category,
         milestones: [],
       }
@@ -385,6 +502,7 @@ function saveActivity(input: NewActivityInput): ActivityData {
   if (!isActivity(activity))
     throw new Error('Enter a valid date, activity, hours, and task status.')
   const next: ActivityData = {
+    ...data,
     activities: [activity, ...data.activities],
     customLearningPlans: newPlan
       ? [...data.customLearningPlans, plan]
@@ -392,6 +510,7 @@ function saveActivity(input: NewActivityInput): ActivityData {
     customCategories: newCategory
       ? [...data.customCategories, category]
       : data.customCategories,
+    planHours: data.planHours,
     milestoneProgress: {},
   }
   next.milestoneProgress = recalculateMilestoneProgress(next.activities, [
@@ -423,5 +542,8 @@ export const activityRepository: ActivityRepository = {
   load,
   saveActivity,
   saveLearningPlan,
+  saveWizard,
+  savePlanStatus,
+  savePlanHours,
   deleteActivity,
 }

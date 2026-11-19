@@ -18,68 +18,62 @@ export const categories: ActivityCategory[] = [
 export const learningPlans: LearningPlan[] = [
   {
     id: 'azure',
-    name: 'Azure Fundamentals',
+    status: 'Not Started',
+    name: 'Azure',
     category: 'Cloud',
     milestones: [
-      { id: 'azure-study', title: 'Azure Fundamentals Study', required: true, status: 'Completed' },
-      { id: 'azure-vm', title: 'Azure VM Lab', required: true, status: 'Completed' },
-      { id: 'azure-review', title: 'Azure Knowledge Review', required: true, status: 'Not Started' },
-    ],
-  },
-  {
-    id: 'power-apps',
-    name: 'Power Apps',
-    category: 'App Development',
-    milestones: [
-      {
-        id: 'canvas-app',
-        title: 'Power Apps Canvas App Practice',
-        required: true,
-        status: 'In Progress',
-      },
-      { id: 'power-forms', title: 'Power Apps Form Practice', required: true, status: 'Completed' },
+      { id: 'azure-certification', title: 'Azure Certification', required: true, status: 'Not Started' },
+      { id: 'azure-upskilling', title: 'Azure Upskilling', required: true, status: 'Not Started' },
     ],
   },
   {
     id: 'oracle',
-    name: 'Oracle Database Administration',
+    status: 'Not Started',
+    name: 'Oracle Database',
     category: 'Database Administration',
     milestones: [
-      {
-        id: 'oracle-architecture',
-        title: 'Oracle Database Architecture',
-        required: true,
-        status: 'Not Started',
-      },
-      {
-        id: 'oracle-backup',
-        title: 'Oracle Backup and Recovery Lab',
-        required: true,
-        status: 'Not Started',
-      },
+      { id: 'oracle-certification', title: 'Oracle Database Certification', required: true, status: 'Not Started' },
+      { id: 'oracle-upskilling', title: 'Oracle Database Upskilling', required: true, status: 'Not Started' },
     ],
   },
   {
     id: 'google-cloud',
-    name: 'Google Cloud',
+    status: 'Not Started',
+    name: 'Google Cloud Platform',
     category: 'Cloud',
     milestones: [
-      {
-        id: 'gcp-core',
-        title: 'Google Cloud Core Services Study',
-        required: true,
-        status: 'Not Started',
-      },
-      { id: 'gcp-compute', title: 'Compute Engine Lab', required: true, status: 'Not Started' },
+      { id: 'gcp-certification', title: 'Google Cloud Platform Certification', required: true, status: 'Not Started' },
+      { id: 'gcp-upskilling', title: 'Google Cloud Platform Upskilling', required: true, status: 'Not Started' },
     ],
   },
   {
     id: 'sql',
-    name: 'SQL for DBA',
+    status: 'Not Started',
+    name: 'SQL DBA',
     category: 'Database Administration',
     milestones: [
-      { id: 'sql-joins', title: 'SQL Joins and Subqueries', required: true, status: 'Completed' },
-      { id: 'sql-procedures', title: 'Stored Procedures Lab', required: true, status: 'In Progress' },
+      { id: 'sql-certification', title: 'SQL DBA Certification', required: true, status: 'Not Started' },
+      { id: 'sql-upskilling', title: 'SQL DBA Upskilling', required: true, status: 'Not Started' },
+    ],
+  },
+  {
+    id: 'claude',
+    status: 'Not Started',
+    name: 'Claude',
+    category: 'AI / Generative AI',
+    milestones: [
+      { id: 'claude-certification', title: 'Claude Certification', required: true, status: 'Not Started' },
+      { id: 'claude-upskilling', title: 'Claude Upskilling', required: true, status: 'Not Started' },
+    ],
+  },
+  {
+    id: 'aws',
+    status: 'Not Started',
+    name: 'AWS',
+    category: 'Cloud',
+    milestones: [
+      { id: 'aws-certification', title: 'AWS Certification', required: true, status: 'Not Started' },
+      { id: 'aws-upskilling', title: 'AWS Upskilling', required: true, status: 'Not Started' },
     ],
   },
 ]
@@ -177,6 +171,14 @@ export const sampleActivities: Activity[] = [
     },
   },
 ]
+
+export function activityLearningPlanName(
+  planId: string,
+  plans: readonly LearningPlan[],
+) {
+  return plans.find((plan) => plan.id === planId)?.name ??
+    (planId === 'power-apps' ? 'Power Apps' : 'Learning plan unavailable')
+}
 
 export function formatActivityDate(date: string) {
   return new Intl.DateTimeFormat('en-US', {

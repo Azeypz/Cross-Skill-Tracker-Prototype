@@ -10,6 +10,7 @@ import type { ActivityDraft, DraftStage } from '../types/activityDraft'
 import type { LearningPlanDraft } from '../types/learningPlanDraft'
 import type { AgentWorkflowState } from '../types/agentWorkflow'
 import { learningPlanDraftSchema } from '../types/apiContract'
+import { AiCoachApiError } from '../services/apiAiCoachService'
 import {
   isLearningPlanIntent,
   updateLearningPlanSchedule,
@@ -29,6 +30,7 @@ export function useAiCoach(
   context: LearningContext,
   onSaveActivity: (input: NewActivityInput) => Activity | Promise<Activity>,
   onSaveLearningPlan: (input: NewLearningPlanInput) => void | Promise<void>,
+  showDiagnostics = false,
 ) {
   const [messages, setMessages] = useState<CoachMessage[]>([
     {
@@ -153,12 +155,17 @@ export function useAiCoach(
         },
       ])
       setInput('')
-    } catch {
+    } catch (failure) {
       if (request !== requestId.current) return
       if (draft) setDraftStage('collecting')
       updateWorkflow('FAILED')
+      const reason = !showDiagnostics
+        ? 'The coach is unavailable right now.'
+        : failure instanceof AiCoachApiError
+          ? failure.message
+          : 'Coach request failed unexpectedly.'
       setError(
-        'The coach is unavailable right now. Your message is kept. Please try again or use Add Activity.',
+        `${reason} Your message is kept. Please try again or use Add Activity.`,
       )
     } finally {
       if (request === requestId.current) {
@@ -386,11 +393,13 @@ export function useAiCoach(
         targetSkill: parsed.data.skill,
         targetCompletionDate: endDate.toISOString().slice(0, 10),
         category: parsed.data.category,
+        plannedHours: parsed.data.totalEstimatedHours,
         milestones: parsed.data.weeklyPlans.flatMap((week) =>
           week.activities.map((activity, index) => ({
             id: `${parsed.data.id}-${week.weekNumber}-${index + 1}`,
             title: `Week ${week.weekNumber}: ${activity.title}`,
             required: true,
+            estimatedHours: activity.estimatedHours,
           })),
         ),
       }

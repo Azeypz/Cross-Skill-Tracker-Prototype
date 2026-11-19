@@ -1,5 +1,4 @@
 import type { AiCoachService } from './aiCoachService'
-import { MockAiCoachService } from './mockAiCoachService'
 import { agentResponseSchema } from '../types/apiContract'
 import type { AgentResponse, LearningContext } from '../types/chat'
 import type { ActivityDraft } from '../types/activityDraft'
@@ -15,11 +14,22 @@ export class AiCoachApiError extends Error {
   }
 }
 
+const workflowFields = new Set(['workflowState', 'pendingAction'])
+
+function safeServerMessage(payload: unknown) {
+  if (typeof payload !== 'object' || payload === null || !('error' in payload))
+    return ''
+  const error = (payload as { error: unknown }).error
+  return typeof error === 'string' ? error.slice(0, 200) : ''
+}
+
 export class ApiAiCoachService implements AiCoachService {
   private readonly baseUrl: string
+  private readonly timeoutMs: number
 
-  constructor(baseUrl = '') {
+  constructor(baseUrl = '', timeoutMs = 15_000) {
     this.baseUrl = baseUrl
+    this.timeoutMs = timeoutMs
   }
 
   async sendMessage(
@@ -41,59 +51,43 @@ export class ApiAiCoachService implements AiCoachService {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message, context, draft, ...requestOptions }),
+        signal: AbortSignal.timeout(this.timeoutMs),
       })
-    } catch {
-      throw new AiCoachApiError('AI Coach API is unavailable.')
-    }
-
-    if (!response.ok) {
-      throw new AiCoachApiError(
-        `AI Coach API returned HTTP ${response.status}.`,
-        response.status,
-      )
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'TimeoutError')
+        throw new AiCoachApiError('Coach API request timed out.')
+      throw new AiCoachApiError('Coach API could not be reached.')
     }
 
     let payload: unknown
     try {
       payload = await response.json()
     } catch {
-      throw new AiCoachApiError('AI Coach API returned invalid JSON.', 502)
+      payload = undefined
     }
+
+    if (!response.ok) {
+      const detail = safeServerMessage(payload)
+      throw new AiCoachApiError(
+        `Coach API request failed: HTTP ${response.status}${detail ? ` (${detail})` : ''}`,
+        response.status,
+      )
+    }
+    if (payload === undefined)
+      throw new AiCoachApiError('Coach API returned invalid JSON.', response.status)
+
     const parsed = agentResponseSchema.safeParse(payload)
-    if (!parsed.success)
-      throw new AiCoachApiError('AI Coach API returned an invalid response.', 502)
-    return parsed.data
-  }
-}
-
-export class FallbackAiCoachService implements AiCoachService {
-  private readonly api: AiCoachService
-  private readonly fallback: AiCoachService
-
-  constructor(
-    api: AiCoachService,
-    fallback: AiCoachService = new MockAiCoachService(),
-  ) {
-    this.api = api
-    this.fallback = fallback
-  }
-
-  async sendMessage(
-    message: string,
-    context: LearningContext,
-    draft?: ActivityDraft,
-    options?: AgentRequestOptions,
-  ): Promise<AgentResponse> {
-    try {
-      return await this.api.sendMessage(message, context, draft, options)
-    } catch (error) {
-      if (error instanceof AiCoachApiError && error.status && error.status < 500)
-        throw error
-      const response = await this.fallback.sendMessage(message, context, draft, options)
-      return {
-        ...response,
-        text: `Using the local mock fallback because the AI Coach API is unavailable.\n\n${response.text}`,
-      }
+    if (!parsed.success) {
+      const workflowIssue = parsed.error.issues.every((issue) =>
+        workflowFields.has(String(issue.path[0])),
+      )
+      throw new AiCoachApiError(
+        workflowIssue
+          ? 'Coach workflow validation failed.'
+          : 'Coach response validation failed.',
+        response.status,
+      )
     }
+    return parsed.data
   }
 }

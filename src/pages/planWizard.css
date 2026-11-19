@@ -1,0 +1,24 @@
+.plan-wizard { max-width: 1000px; margin-inline: auto; color: #20283e; }
+.wizard-steps, .wizard-grid { display: grid; gap: 14px; }
+.wizard-steps { grid-template-columns: repeat(3, 1fr); margin: 20px 0; }
+.wizard-steps button { padding: 12px; text-align: left; background: white; border: 1px solid #ccd4e4; border-radius: 7px; color: #536076; font: inherit; font-weight: 600; }
+.wizard-steps button[aria-current] { color: #5431a5; background: #f3efff; border-color: #7049c9; }
+.plan-wizard .wizard-card { width: 100%; max-width: none; background: white; border: 1px solid #d5dcea; border-radius: 10px; }
+.wizard-card header p, .wizard-card > p:not([role]) { color: #606b80; }
+.wizard-card h2, .wizard-card h3, .wizard-card h4 { margin: 0 0 6px; }
+.wizard-card fieldset, .wizard-proposal, .wizard-review { display: grid; gap: 14px; min-width: 0; }
+.wizard-card fieldset { margin: 0; padding: 16px; background: #fafbfd; border: 1px solid #d5dcea; border-radius: 7px; }
+.wizard-card legend { font-weight: 650; padding: 0 6px; }
+.wizard-card .secondary-button { justify-self: start; }
+.wizard-grid, .wizard-review dl { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.wizard-proposal { padding-bottom: 14px; border-bottom: 1px solid #d5dcea; }
+.wizard-review { padding-top: 8px; overflow-wrap: anywhere; }
+.wizard-review dl { display: grid; gap: 12px; margin: 0; }
+.wizard-review dt { color: #606b80; font-size: .85em; }
+.wizard-review dd { margin: 2px 0; }
+@media (max-width: 650px) {
+  .wizard-grid, .wizard-review dl { grid-template-columns: 1fr; }
+  .wizard-steps { gap: 4px; }
+  .wizard-steps button { padding: 7px; font-size: .8rem; }
+  .wizard-card .form-actions { flex-wrap: wrap; }
+}

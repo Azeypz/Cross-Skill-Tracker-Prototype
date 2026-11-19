@@ -128,15 +128,14 @@ export default function ActivityDraftEditor({
           ))}
         </select>
       </FormField>
-      <FormField id="draft-hours" label="Hours Spent" required>
+      <FormField id="draft-hours" label="Hours Spent">
         <input
           id="draft-hours"
           type="number"
-          min="0.01"
+          min="0"
           max="24"
-          step="any"
+          step="0.25"
           value={Number.isFinite(draft.hours) ? draft.hours : ''}
-          required
           onChange={(event) =>
             onChange({
               hours: event.target.value
